@@ -8,7 +8,7 @@ create table public.habit_tasks (
   user_id            uuid not null default auth.uid() references auth.users(id) on delete cascade,
   name               text not null check (length(trim(name)) > 0),
   kind               text not null check (kind in ('habit','chore')),
-  period             text not null check (period in ('day','week','biweek','month')),
+  period             text not null check (period in ('day','week','biweek','month','year')),
   period_anchor      date,
   target             numeric not null check (target > 0),
   unit_type          text not null default 'occurrence' check (unit_type in ('occurrence','quantity')),

@@ -51,7 +51,7 @@ const flaggedCount = computed(() => state.tasks.filter((t) => t.pauses_on_vacati
   <section class="panel vacation">
     <div class="top">
       <div>
-        <h2>🌴 Vacation</h2>
+        <h2>Vacation</h2>
         <p class="status">{{ status }}</p>
       </div>
       <div v-if="!editing" class="actions">

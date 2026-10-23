@@ -40,7 +40,7 @@ const statLine = computed(() =>
 const periodWord = computed(() => {
   if (props.task.period === 'day') return ''
   const current = periodFor(props.task, props.today).start === period.value.start
-  const name = { week: 'week', biweek: '2 weeks', month: 'month' }[props.task.period]
+  const name = { week: 'week', biweek: '2 weeks', month: 'month', year: 'year' }[props.task.period]
   return `${current ? 'this' : 'that'} ${name}`
 })
 const progressText = computed(() => {
@@ -123,15 +123,18 @@ function addCustom() {
 <style scoped>
 .card {
   --accent: var(--habit);
+  --accent-2: var(--habit-2);
   position: relative;
   overflow: hidden;
   border: 1px solid var(--border);
   border-left: 4px solid var(--accent);
   border-radius: 12px;
   background: var(--surface);
+  box-shadow: var(--shadow);
 }
 .card.chore {
   --accent: var(--chore);
+  --accent-2: var(--chore-2);
 }
 .card.paused {
   opacity: 0.55;
@@ -194,8 +197,8 @@ function addCustom() {
   line-height: 1;
 }
 .step.plus {
-  border-color: var(--accent);
-  background: var(--accent);
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
   color: var(--surface);
   font-size: 1.1rem;
   font-weight: 700;
@@ -252,12 +255,12 @@ function addCustom() {
   left: 0;
   right: 0;
   bottom: 0;
-  height: 3px;
+  height: 4px;
   background: var(--track);
 }
 .bar {
   height: 100%;
-  background: var(--accent);
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
   transition: width 0.2s;
 }
 </style>

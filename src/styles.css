@@ -1,15 +1,27 @@
+/* Light theme is the default; dark applies when <html data-theme="dark">
+   (set by src/lib/theme.js from the Settings choice). */
 :root {
-  color-scheme: light dark;
-  --bg: #f5f6f8;
+  color-scheme: light;
+  --bg: #f3f5f8;
   --surface: #ffffff;
   --text: #1d2330;
   --muted: #667085;
-  --border: #e3e6eb;
-  --track: #eceef2;
+  --border: #e1e5eb;
+  --track: #e8ebf0;
+  --shadow: 0 1px 2px rgb(16 24 40 / 0.05), 0 4px 14px rgb(16 24 40 / 0.06);
+
+  /* Brand blend from the app icon: blue into green. */
+  --brand-a: #3b7ce6;
+  --brand-b: #2e9e5f;
+  --brand: linear-gradient(135deg, var(--brand-a), var(--brand-b));
+  --wash-a: rgb(59 124 230 / 0.16);
+  --wash-b: rgb(46 158 95 / 0.13);
 
   --habit: #2f6fdb;
+  --habit-2: #5b8ff0;
   --habit-soft: #e6eefc;
   --chore: #2e8b57;
+  --chore-2: #36b07a;
   --chore-soft: #e2f3e9;
   --amber: #9a6512;
   --amber-soft: #fcf1d8;
@@ -26,29 +38,36 @@
   line-height: 1.4;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #12151b;
-    --surface: #1b2029;
-    --text: #e6e9ef;
-    --muted: #9aa3b2;
-    --border: #2a303b;
-    --track: #2a303b;
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0f1218;
+  --surface: #191e27;
+  --text: #e6e9ef;
+  --muted: #9aa3b2;
+  --border: #272d38;
+  --track: #2a303b;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 18px rgb(0 0 0 / 0.25);
 
-    --habit: #79a6fa;
-    --habit-soft: #1d2a44;
-    --chore: #62c992;
-    --chore-soft: #173027;
-    --amber: #f0bd5e;
-    --amber-soft: #392d14;
-    --amber-strong: #5c4515;
-    --neutral-soft: #262c36;
-    --switch-on: #3fae6e;
-    --switch-off: #c9473d;
-    --vacation: #4cc3cd;
-    --vacation-soft: #13313a;
-    --met: #1f4d35;
-  }
+  --brand-a: #5b8ff0;
+  --brand-b: #3fb27a;
+  --wash-a: rgb(91 143 240 / 0.2);
+  --wash-b: rgb(63 178 122 / 0.14);
+
+  --habit: #79a6fa;
+  --habit-2: #a1c0ff;
+  --habit-soft: #1d2a44;
+  --chore: #62c992;
+  --chore-2: #8ee0b5;
+  --chore-soft: #173027;
+  --amber: #f0bd5e;
+  --amber-soft: #392d14;
+  --amber-strong: #5c4515;
+  --neutral-soft: #262c36;
+  --switch-on: #3fae6e;
+  --switch-off: #c9473d;
+  --vacation: #4cc3cd;
+  --vacation-soft: #13313a;
+  --met: #1f4d35;
 }
 
 * {
@@ -57,7 +76,13 @@
 
 body {
   margin: 0;
-  background: var(--bg);
+  min-height: 100vh;
+  /* A soft wash of the icon's blue and green across the top of every screen. */
+  background:
+    radial-gradient(90% 320px at 0% 0%, var(--wash-a), transparent),
+    radial-gradient(90% 320px at 100% 0%, var(--wash-b), transparent),
+    var(--bg);
+  background-repeat: no-repeat;
   color: var(--text);
   -webkit-tap-highlight-color: transparent;
 }
@@ -112,9 +137,9 @@ button:disabled {
   font-weight: 600;
 }
 .btn.primary {
-  border-color: var(--text);
-  background: var(--text);
-  color: var(--bg);
+  border-color: transparent;
+  background: var(--brand);
+  color: #fff;
 }
 .btn.small {
   min-height: 36px;
@@ -155,4 +180,13 @@ button:disabled {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+/* Gradient text for page titles */
+.brand-text {
+  background: var(--brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }

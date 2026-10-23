@@ -8,6 +8,7 @@ export const state = reactive({
   ready: false,
   demo: false,
   error: '', // last failed load or save, shown as a banner
+  email: '', // signed-in account, for Settings
   tasks: [],
   completions: [], // kept in creation order, oldest first
   pauses: [],

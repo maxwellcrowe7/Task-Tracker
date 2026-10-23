@@ -26,6 +26,7 @@ onUnmounted(() => window.removeEventListener('unhandledrejection', onFailure))
   <nav v-if="state.ready" class="tabs">
     <router-link to="/" class="tab" exact-active-class="on">Today</router-link>
     <router-link to="/manage" class="tab" active-class="on">Manage</router-link>
+    <router-link to="/settings" class="tab" active-class="on">Settings</router-link>
   </nav>
 </template>
 
@@ -81,11 +82,14 @@ onUnmounted(() => window.removeEventListener('unhandledrejection', onFailure))
   gap: 8px;
   padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--border);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
 }
 .tab {
+  position: relative;
   flex: 1;
-  max-width: 200px;
+  max-width: 160px;
   padding: 12px 0;
   border-radius: 10px;
   text-align: center;
@@ -94,7 +98,19 @@ onUnmounted(() => window.removeEventListener('unhandledrejection', onFailure))
   color: var(--muted);
 }
 .tab.on {
-  background: var(--neutral-soft);
-  color: var(--text);
+  background: var(--brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.tab.on::after {
+  content: '';
+  position: absolute;
+  left: 30%;
+  right: 30%;
+  bottom: 4px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--brand);
 }
 </style>

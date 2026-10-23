@@ -7,6 +7,7 @@ import { dailyTotals, sumRange } from '../domain/totals.js'
 import { computeStreak } from '../domain/streak.js'
 import { computeStats, formatStats } from '../domain/stats.js'
 import { isPausedOn } from '../domain/pauses.js'
+import { inSeason } from '../domain/season.js'
 import { formatDate } from '../lib/format.js'
 
 const props = defineProps({ id: { type: String, required: true } })
@@ -54,7 +55,11 @@ const rows = computed(() => {
   return result
 })
 const dayMet = (date) => task.value.period === 'day' && (totals.value.get(date) ?? 0) >= target.value
-const monthMet = computed(() => task.value.period === 'month' && periodMet(periodFor(task.value, month.value)))
+// Monthly and yearly targets can't fill cells, so the month header says when they're met.
+const monthMet = computed(
+  () => (task.value.period === 'month' || task.value.period === 'year') && periodMet(periodFor(task.value, month.value)),
+)
+const metLabel = computed(() => (task.value.period === 'year' ? 'Year target met' : 'Target met'))
 
 const WEEKDAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 
@@ -68,11 +73,12 @@ const summary = computed(() => {
   const amount = fmt(selectedAmount.value)
   if (task.value.period === 'day') return `${amount} of ${fmt(target.value)}${unit.value} logged`
   const current = selectedPeriod.value.start === periodFor(task.value, today).start
-  const name = { week: 'week', biweek: '2 weeks', month: 'month' }[task.value.period]
+  const name = { week: 'week', biweek: '2 weeks', month: 'month', year: 'year' }[task.value.period]
   return `${amount}${unit.value} logged · ${current ? 'This' : 'That'} ${name}: ${fmt(periodTotal.value)} / ${fmt(target.value)}`
 })
 const selectedPaused = computed(() => isPausedOn(task.value, selected.value, state.pauses, state.vacations))
 const beforeStart = computed(() => selected.value < task.value.active_since)
+const offSeason = computed(() => !inSeason(task.value, selected.value))
 const unit = computed(() => (task.value.unit_label ? ` ${task.value.unit_label}` : ''))
 
 const busy = ref(false)
@@ -112,7 +118,7 @@ function addCustom() {
         <button class="arrow" aria-label="Previous month" @click="prevMonth">‹</button>
         <div class="month">
           <span>{{ monthLabel }}</span>
-          <span v-if="monthMet" class="pill chore">Target met</span>
+          <span v-if="monthMet" class="pill chore">{{ metLabel }}</span>
         </div>
         <button class="arrow" aria-label="Next month" :disabled="isCurrentMonth" @click="nextMonth">›</button>
       </div>
@@ -131,7 +137,7 @@ function addCustom() {
             met: dayMet(date),
             today: date === today,
             selected: date === selected,
-            early: date < task.active_since,
+            early: date < task.active_since || !inSeason(task, date),
           }"
           :disabled="date > today"
           :aria-label="formatDate(date)"
@@ -163,7 +169,8 @@ function addCustom() {
         <button type="submit" :disabled="!(Number(customAmount) > 0) || busy">Add</button>
       </form>
 
-      <p v-if="beforeStart" class="note">This is before the task's "counts from" date, so it won't count.</p>
+      <p v-if="beforeStart" class="note">This is before the task's starting date, so it won't count.</p>
+      <p v-else-if="offSeason" class="note">Out of season on this day, so it doesn't count toward the streak or stats.</p>
       <p v-else-if="selectedPaused" class="note">Paused on this day, so this period doesn't count toward the streak or stats.</p>
     </section>
   </template>

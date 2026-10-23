@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { signIn, startDemo } from '../data/session.js'
 
 const router = useRouter()
+const logo = `${import.meta.env.BASE_URL}icon.svg` // works on the Pages subpath too
 const email = ref('')
 const password = ref('')
 const error = ref('')
@@ -30,7 +31,8 @@ async function demo() {
 
 <template>
   <main class="login">
-    <h1>Habit Tracker</h1>
+    <img :src="logo" alt="" class="logo" />
+    <h1><span class="brand-text">Habit Tracker</span></h1>
 
     <form class="panel" @submit.prevent="submit">
       <label class="field">
@@ -54,6 +56,14 @@ async function demo() {
 .login {
   max-width: 380px;
   margin: 8vh auto 0;
+}
+.logo {
+  display: block;
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 12px;
+  border-radius: 18px;
+  box-shadow: var(--shadow);
 }
 h1 {
   margin: 0 0 16px;

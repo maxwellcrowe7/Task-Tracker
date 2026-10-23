@@ -8,6 +8,8 @@ import TaskFormView from './views/TaskFormView.vue'
 import TaskHistoryView from './views/TaskHistoryView.vue'
 import { state } from './data/store.js'
 import { restoreSession } from './data/session.js'
+import { startTheme } from './lib/theme.js'
+import SettingsView from './views/SettingsView.vue'
 import './styles.css'
 
 // Hash routing works on a GitHub Pages subpath without server config.
@@ -20,6 +22,7 @@ const router = createRouter({
     { path: '/manage/new', component: TaskFormView },
     { path: '/manage/:id', component: TaskFormView, props: true },
     { path: '/task/:id', component: TaskHistoryView, props: true },
+    { path: '/settings', component: SettingsView },
   ],
   scrollBehavior: () => ({ top: 0 }),
 })
@@ -29,6 +32,8 @@ router.beforeEach((to) => {
   if (!state.ready && to.path !== '/login') return '/login'
   if (state.ready && to.path === '/login') return '/'
 })
+
+startTheme()
 
 restoreSession()
   .catch((error) => {

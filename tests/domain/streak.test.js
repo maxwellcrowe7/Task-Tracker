@@ -72,6 +72,11 @@ describe('computeStreak: weekly and longer', () => {
     expect(streak(month, done(['2026-09-30', '2026-08-01', '2026-06-15']))).toBe(2)
   })
 
+  it('yearly', () => {
+    const year = makeTask({ period: 'year', target: 2, active_since: '2023-01-01' })
+    expect(streak(year, done(['2025-03-01', '2025-09-01', '2024-05-05', '2024-06-06', '2023-01-01']))).toBe(2)
+  })
+
   it('a current period that is already met counts', () => {
     const stretch = makeTask({ period: 'week', target: 2 })
     expect(streak(stretch, done(['2026-10-18', '2026-10-19', '2026-10-12', '2026-10-13']))).toBe(2)

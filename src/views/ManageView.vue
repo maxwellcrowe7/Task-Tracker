@@ -1,18 +1,32 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { state, setActive, pauseTask, resumeTask, updateTask } from '../data/store.js'
 import { todayLocal, WEEKDAY_SHORT } from '../domain/dates.js'
-import { openPause } from '../domain/pauses.js'
-import { signOut } from '../data/session.js'
+import { openPause, currentVacation } from '../domain/pauses.js'
+import { hasSeason } from '../domain/season.js'
+import { formatShortDate } from '../lib/format.js'
 import VacationPanel from '../components/VacationPanel.vue'
+import PlaneIcon from '../components/PlaneIcon.vue'
 
-const sorted = computed(() => [...state.tasks].sort((a, b) => a.sort_order - b.sort_order))
-const groups = computed(() => [
-  { title: 'Habits', kind: 'habit', tasks: sorted.value.filter((t) => t.kind === 'habit') },
-  { title: 'Chores', kind: 'chore', tasks: sorted.value.filter((t) => t.kind === 'chore') },
-])
+// Search matches any part of the name, ignoring case and accents.
+const query = ref('')
+const fold = (text) => text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
+const searching = computed(() => query.value.trim() !== '')
 
-const PER = { day: 'day', week: 'week', biweek: '2 weeks', month: 'month' }
+const sorted = computed(() => {
+  const q = fold(query.value.trim())
+  return state.tasks
+    .filter((t) => !q || fold(t.name).includes(q))
+    .sort((a, b) => a.sort_order - b.sort_order)
+})
+const groups = computed(() =>
+  [
+    { title: 'Habits', kind: 'habit', tasks: sorted.value.filter((t) => t.kind === 'habit') },
+    { title: 'Chores', kind: 'chore', tasks: sorted.value.filter((t) => t.kind === 'chore') },
+  ].filter((g) => !searching.value || g.tasks.length),
+)
+
+const PER = { day: 'day', week: 'week', biweek: '2 weeks', month: 'month', year: 'year' }
 function describe(task) {
   const amount = task.unit_type === 'quantity'
     ? `${Number(task.target).toLocaleString()} ${task.unit_label ?? ''}`.trim()
@@ -22,6 +36,7 @@ function describe(task) {
     text += ` · ${WEEKDAY_SHORT[task.pinned_day]}`
     if (task.grace_days) text += ` +${task.grace_days}d grace`
   }
+  if (hasSeason(task)) text += ` · ${formatShortDate(task.season_start)} – ${formatShortDate(task.season_end)}`
   return `${text} · ${task.scope === 'work' ? 'Work' : 'Personal'}`
 }
 
@@ -38,8 +53,15 @@ async function toggleActive(task, event) {
   await setActive(task, !task.active, todayLocal())
 }
 
+// The vacation section is tucked behind the airplane button.
+const vacationOpen = ref(false)
+const vacationSet = computed(() => Boolean(currentVacation(state.vacations, todayLocal())))
+
 // When on, the list highlights tasks that pause on vacation and lets you add or remove them in place.
 const vacationMode = ref(false)
+watch(vacationOpen, (open) => {
+  if (!open) vacationMode.value = false
+})
 const toggleVacationPause = (task) => updateTask(task, { pauses_on_vacation: !task.pauses_on_vacation })
 
 const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) : pauseTask(task, todayLocal()))
@@ -47,11 +69,39 @@ const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) :
 
 <template>
   <header class="head">
-    <h1>Manage</h1>
-    <router-link to="/manage/new" class="btn primary add">+ Add task</router-link>
+    <h1><span class="brand-text">Manage</span></h1>
+    <div class="head-actions">
+      <button
+        class="plane"
+        :class="{ open: vacationOpen, set: vacationSet }"
+        :aria-expanded="vacationOpen"
+        :aria-label="vacationSet ? 'Vacation (set)' : 'Vacation'"
+        :title="vacationSet ? 'Vacation is set' : 'Vacation'"
+        @click="vacationOpen = !vacationOpen"
+      >
+        <PlaneIcon />
+        <span v-if="vacationSet" class="dot" aria-hidden="true"></span>
+      </button>
+      <router-link to="/manage/new" class="btn primary add">+ Add task</router-link>
+    </div>
   </header>
 
-  <VacationPanel v-model:highlight="vacationMode" />
+  <div class="search">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></svg>
+    <input
+      v-model="query"
+      type="search"
+      class="input"
+      placeholder="Search tasks"
+      aria-label="Search tasks"
+      autocomplete="off"
+      enterkeyhint="search"
+    />
+    <button v-if="searching" class="clear" aria-label="Clear search" @click="query = ''">✕</button>
+  </div>
+
+  <!-- Opened with the airplane button; hidden while searching unless you're picking vacation tasks. -->
+  <VacationPanel v-if="vacationOpen" v-show="!searching || vacationMode" v-model:highlight="vacationMode" />
 
   <section v-for="group in groups" :key="group.kind" class="group">
     <h2>{{ group.title }}</h2>
@@ -67,9 +117,10 @@ const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) :
           :class="{ on: task.pauses_on_vacation }"
           :aria-pressed="task.pauses_on_vacation"
           :aria-label="`${task.name} pauses on vacation`"
+          :title="task.pauses_on_vacation ? 'Pauses on vacation' : 'Add to vacation pauses'"
           @click="toggleVacationPause(task)"
         >
-          {{ task.pauses_on_vacation ? '🌴 Pauses' : '+ Add' }}
+          <PlaneIcon />
         </button>
         <template v-else>
         <button
@@ -93,8 +144,7 @@ const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) :
       <li v-if="!group.tasks.length" class="empty">None yet.</li>
     </ul>
   </section>
-
-  <button v-if="!state.demo" class="btn sign-out" @click="signOut">Sign out</button>
+  <p v-if="searching && !sorted.length" class="no-match">No tasks match “{{ query.trim() }}”.</p>
 </template>
 
 <style scoped>
@@ -107,6 +157,85 @@ const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) :
 h1 {
   margin: 0;
   font-size: 1.4rem;
+}
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.plane {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--muted);
+}
+.plane.set {
+  color: var(--vacation);
+}
+.plane.open {
+  border-color: var(--vacation);
+  background: var(--vacation-soft);
+  color: var(--vacation);
+}
+.plane .dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--vacation);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.search {
+  position: sticky;
+  top: 8px;
+  z-index: 2;
+  margin-bottom: 12px;
+}
+.search svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 2;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.search .input {
+  padding: 0 40px 0 38px;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  font-size: 1rem; /* 16px+ stops iPhone zooming in on focus */
+}
+.search .input::-webkit-search-cancel-button {
+  display: none;
+}
+.clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  width: 36px;
+  height: 36px;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: var(--muted);
+}
+.no-match {
+  margin-top: 20px;
+  text-align: center;
+  color: var(--muted);
 }
 .add {
   display: inline-flex;
@@ -140,6 +269,7 @@ ul {
   border-left: 4px solid var(--habit);
   border-radius: 12px;
   background: var(--surface);
+  box-shadow: var(--shadow);
 }
 .row.chore {
   border-left-color: var(--chore);
@@ -163,11 +293,6 @@ ul {
 }
 .desc {
   font-size: 0.8rem;
-  color: var(--muted);
-}
-.sign-out {
-  display: block;
-  margin: 28px auto 0;
   color: var(--muted);
 }
 .empty {
@@ -223,20 +348,21 @@ ul {
 }
 .vac-btn {
   flex-shrink: 0;
-  min-width: 96px;
-  min-height: 40px;
-  padding: 0 12px;
-  border: 1px dashed var(--border);
-  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1.5px dashed var(--muted);
+  border-radius: 50%;
   background: var(--surface);
   color: var(--muted);
-  font-weight: 600;
-  font-size: 0.85rem;
+  opacity: 0.7;
 }
 .vac-btn.on {
-  border: 1px solid var(--vacation);
+  border: 1.5px solid var(--vacation);
   background: var(--vacation);
-  color: var(--surface);
+  color: #fff;
+  opacity: 1;
 }
 
 /* Pause / play */

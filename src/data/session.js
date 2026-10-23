@@ -1,4 +1,4 @@
-import { initStore } from './store.js'
+import { initStore, state } from './store.js'
 import { createMemoryRepo } from './memoryRepo.js'
 import { createSupabaseRepo } from './supabaseRepo.js'
 import { buildSampleData } from './seed.js'
@@ -9,7 +9,11 @@ export { isConfigured }
 
 export const startDemo = () => initStore(createMemoryRepo(buildSampleData(todayLocal())))
 
-const startSupabase = () => initStore(createSupabaseRepo(supabase))
+async function startSupabase() {
+  const { data } = await supabase.auth.getSession()
+  state.email = data.session?.user.email ?? ''
+  await initStore(createSupabaseRepo(supabase))
+}
 
 // On launch: demo mode if Supabase isn't configured, otherwise resume a saved login.
 // Returns false when the login screen is needed.

@@ -23,15 +23,19 @@ describe('normalizeTask', () => {
     expect(normalizeTask(base({ period: 'week', period_anchor: '2026-10-21' })).period_anchor).toBeNull()
   })
 
-  it('occurrence tasks always add 1 and have no unit', () => {
-    const t = normalizeTask(base({ unit_type: 'occurrence', quick_add: 50, unit_label: 'putts' }))
-    expect(t.quick_add).toBe(1)
-    expect(t.unit_label).toBeNull()
+  it('a plain count is an occurrence task', () => {
+    expect(normalizeTask(base({ target: 2, quick_add: 1, unit_label: '  ' }))).toMatchObject({ unit_type: 'occurrence', unit_label: null })
+  })
+
+  it('a unit, a bigger + step or a fractional frequency makes it a quantity task', () => {
+    expect(normalizeTask(base({ unit_label: 'pages' })).unit_type).toBe('quantity')
+    expect(normalizeTask(base({ quick_add: 50 })).unit_type).toBe('quantity')
+    expect(normalizeTask(base({ target: 2.5 })).unit_type).toBe('quantity')
   })
 
   it('converts form strings to numbers and trims the name', () => {
-    const t = normalizeTask(base({ name: '  Putting ', unit_type: 'quantity', target: '1000', quick_add: '50' }))
-    expect(t).toMatchObject({ name: 'Putting', target: 1000, quick_add: 50 })
+    const t = normalizeTask(base({ name: '  Putting ', target: '1000', quick_add: '50', unit_label: 'putts' }))
+    expect(t).toMatchObject({ name: 'Putting', target: 1000, quick_add: 50, unit_type: 'quantity' })
   })
 })
 
@@ -47,9 +51,8 @@ describe('validateTask', () => {
     expect(errors({ target: 0 })).toHaveProperty('target')
   })
 
-  it('occurrence targets are whole numbers', () => {
-    expect(errors({ target: 1.5 })).toHaveProperty('target')
-    expect(errors({ unit_type: 'quantity', target: 1.5 })).not.toHaveProperty('target')
+  it('the + step must be positive', () => {
+    expect(errors({ quick_add: 0 })).toHaveProperty('quick_add')
   })
 
   it('grace is 0 to 6 days', () => {

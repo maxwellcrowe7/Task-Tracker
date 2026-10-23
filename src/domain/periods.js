@@ -5,6 +5,7 @@ import { addDays, dayOfWeek, diffDays, startOfMonth, endOfMonth } from './dates.
 //   week:   Sunday..Saturday, fixed calendar weeks
 //   biweek: 14-day blocks counted from task.period_anchor (a Sunday), in both directions
 //   month:  calendar month
+//   year:   calendar year
 export function periodFor(task, date) {
   switch (task.period) {
     case 'day':
@@ -21,6 +22,8 @@ export function periodFor(task, date) {
     }
     case 'month':
       return { start: startOfMonth(date), end: endOfMonth(date) }
+    case 'year':
+      return { start: `${date.slice(0, 4)}-01-01`, end: `${date.slice(0, 4)}-12-31` }
     default:
       throw new Error(`Unknown period "${task.period}"`)
   }
@@ -31,8 +34,9 @@ export const previousPeriod = (task, period) => periodFor(task, addDays(period.s
 const UNIT_NAMES = {
   day: ['day', 'days'],
   week: ['week', 'weeks'],
-  biweek: ['biweek', 'biweeks'],
+  biweek: ['bi-week', 'bi-weeks'],
   month: ['month', 'months'],
+  year: ['year', 'years'],
 }
 
 // "day" / "days", "week" / "weeks", ...

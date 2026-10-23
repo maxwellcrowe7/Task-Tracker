@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { state } from '../data/store.js'
 import { addDays, todayLocal } from '../domain/dates.js'
 import { formatDate } from '../lib/format.js'
+import { inSeason } from '../domain/season.js'
 import TaskCard from '../components/TaskCard.vue'
 
 // Keep "today" right if the app stays open past midnight.
@@ -34,7 +35,7 @@ const filter = ref('all')
 
 const visibleTasks = computed(() =>
   state.tasks
-    .filter((t) => t.active && t.active_since <= selected.value)
+    .filter((t) => t.active && t.active_since <= selected.value && inSeason(t, selected.value))
     .filter((t) => filter.value === 'all' || t.scope === filter.value)
     .sort((a, b) => a.sort_order - b.sort_order),
 )
@@ -44,7 +45,7 @@ const visibleTasks = computed(() =>
   <header class="day-nav">
     <button class="arrow" aria-label="Previous day" @click="selected = addDays(selected, -1)">‹</button>
     <button class="date" :disabled="isToday" @click="selected = today">
-      <span>{{ dateLabel }}</span>
+      <span class="brand-text">{{ dateLabel }}</span>
       <small v-if="!isToday">Back to today</small>
     </button>
     <button class="arrow" aria-label="Next day" :disabled="isToday" @click="selected = addDays(selected, 1)">›</button>
@@ -82,6 +83,7 @@ const visibleTasks = computed(() =>
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
+  box-shadow: var(--shadow);
   font-size: 1.6rem;
   line-height: 1;
 }
@@ -92,8 +94,8 @@ const visibleTasks = computed(() =>
   align-items: center;
   border: none;
   background: none;
-  font-size: 1.25rem;
-  font-weight: 700;
+  font-size: 1.4rem;
+  font-weight: 800;
 }
 .date:disabled {
   opacity: 1;
@@ -117,9 +119,10 @@ const visibleTasks = computed(() =>
   font-size: 0.9rem;
 }
 .chip.on {
-  background: var(--text);
-  border-color: var(--text);
-  color: var(--bg);
+  border-color: transparent;
+  background: var(--brand);
+  color: #fff;
+  font-weight: 600;
 }
 .list {
   display: flex;

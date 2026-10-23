@@ -1,5 +1,6 @@
 import { periodFor, previousPeriod } from './periods.js'
 import { pauseRangesFor, overlapsAny } from './pauses.js'
+import { periodInSeason } from './season.js'
 import { dailyTotals, sumRange } from './totals.js'
 
 // Streak for a habit, in periods. Never stored; always computed from history.
@@ -15,7 +16,8 @@ export function computeStreak(task, completions, pauses, vacations, today) {
   const totals = dailyTotals(task, completions)
   const ranges = pauseRangesFor(task, pauses, vacations)
   const target = Number(task.target)
-  const isPaused = (p) => overlapsAny(ranges, p.start, p.end)
+  // Paused and off-season periods are both skipped: frozen, not broken.
+  const isPaused = (p) => overlapsAny(ranges, p.start, p.end) || !periodInSeason(task, p)
   const isMet = (p) => sumRange(totals, p.start, p.end) >= target
 
   let count = 0
