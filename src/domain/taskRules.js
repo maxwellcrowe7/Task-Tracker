@@ -1,0 +1,68 @@
+import { addDays, dayOfWeek } from './dates.js'
+
+// Fields the task form edits. Season, subtag and sort order are not in the v0.1 UI.
+export const EDITABLE_FIELDS = [
+  'name', 'kind', 'scope', 'period', 'period_anchor', 'target', 'unit_type', 'unit_label',
+  'quick_add', 'pinned_day', 'grace_days', 'active', 'active_since', 'pauses_on_vacation',
+]
+
+export const pinAllowed = (period) => period === 'week' || period === 'biweek'
+
+export const sundayOf = (date) => addDays(date, -dayOfWeek(date))
+
+export const newTaskDefaults = (today) => ({
+  name: '',
+  kind: 'habit',
+  scope: 'personal',
+  period: 'day',
+  period_anchor: null,
+  target: 1,
+  unit_type: 'occurrence',
+  unit_label: '',
+  quick_add: 1,
+  pinned_day: null,
+  grace_days: 0,
+  active: true,
+  active_since: today,
+  pauses_on_vacation: false,
+})
+
+// Turns form input into a clean row, applying the same rules the database enforces:
+// habits never have grace, pins only on weekly/biweekly tasks, grace only with a pin,
+// biweek anchors snap to a Sunday, occurrence tasks always add 1.
+export function normalizeTask(input) {
+  const t = { ...input }
+  t.name = String(t.name ?? '').trim()
+  t.target = Number(t.target)
+  t.quick_add = Number(t.quick_add)
+  t.grace_days = Number(t.grace_days) || 0
+
+  if (t.unit_type === 'occurrence') {
+    t.quick_add = 1
+    t.unit_label = null
+  } else {
+    t.unit_label = String(t.unit_label ?? '').trim() || null
+  }
+
+  if (t.period !== 'biweek') t.period_anchor = null
+  else if (t.period_anchor) t.period_anchor = sundayOf(t.period_anchor)
+
+  if (!pinAllowed(t.period) || t.pinned_day === '' || t.pinned_day == null) t.pinned_day = null
+  else t.pinned_day = Number(t.pinned_day)
+
+  if (t.kind === 'habit' || t.pinned_day == null) t.grace_days = 0
+  return t
+}
+
+// Returns { field: message } for anything wrong; empty object when valid.
+export function validateTask(t) {
+  const errors = {}
+  if (!t.name) errors.name = 'Give it a name.'
+  if (!(t.target > 0)) errors.target = 'Must be more than 0.'
+  else if (t.unit_type === 'occurrence' && !Number.isInteger(t.target)) errors.target = 'Use a whole number.'
+  if (t.unit_type === 'quantity' && !(t.quick_add > 0)) errors.quick_add = 'Must be more than 0.'
+  if (!Number.isInteger(t.grace_days) || t.grace_days < 0 || t.grace_days > 6) errors.grace_days = 'Between 0 and 6 days.'
+  if (t.period === 'biweek' && !t.period_anchor) errors.period_anchor = 'Pick a starting week.'
+  if (!t.active_since) errors.active_since = 'Pick a date.'
+  return errors
+}
