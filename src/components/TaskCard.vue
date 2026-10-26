@@ -1,12 +1,13 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { state, addCompletion, removeLastCompletion } from '../data/store.js'
+import { state, addCompletion, removeLastCompletion, recoverStreak, declineRecovery, skipPeriod, undoSkip } from '../data/store.js'
 import { periodFor, periodUnit } from '../domain/periods.js'
 import { dailyTotals, sumRange } from '../domain/totals.js'
-import { computeStreak } from '../domain/streak.js'
+import { computeStreak, recoveryOffer } from '../domain/streak.js'
 import { computeStats, formatStats } from '../domain/stats.js'
 import { pinStatus } from '../domain/status.js'
-import { isPausedOn } from '../domain/pauses.js'
+import { isPausedOn, skipOn } from '../domain/pauses.js'
+import RecoveryDialog from './RecoveryDialog.vue'
 
 // Progress, pin status and the +/− buttons are for the selected day.
 // Streak and the stat line are always "as of today".
@@ -27,6 +28,23 @@ const dayAmount = computed(() => totals.value.get(props.date) ?? 0)
 const canRemove = computed(() => state.completions.some((c) => c.task_id === props.task.id && c.date === props.date))
 
 const paused = computed(() => isPausedOn(props.task, props.date, state.pauses, state.vacations))
+const skipped = computed(() => Boolean(skipOn(props.task, props.date, state.pauses)))
+
+// Skip: a lifeline for one period. The streak stays as it is and the period isn't counted.
+const skipLabel = computed(() => {
+  if (props.task.period === 'day') return props.date === props.today ? 'Skip today' : 'Skip this day'
+  const current = periodFor(props.task, props.today).start === period.value.start
+  const name = { week: 'week', biweek: '2 weeks', month: 'month', year: 'year' }[props.task.period]
+  return `Skip ${current ? 'this' : 'that'} ${name}`
+})
+function skip() {
+  const what = skipLabel.value.replace('Skip ', '')
+  const ok = confirm(
+    `Skip "${props.task.name}" ${what}? ${isHabit.value ? 'Your streak stays as it is, but this won\'t add to it.' : 'It won\'t count against you.'}`,
+  )
+  if (ok) run(() => skipPeriod(props.task, props.date))
+}
+const unskip = () => run(() => undoSkip(props.task, props.date))
 const pin = computed(() => pinStatus(props.task, state.completions, props.date))
 const pinTone = computed(
   () => ({ upcoming: '', due: 'amber', grace: 'amber', overdue: 'amber-strong', done: 'chore' })[pin.value?.state] ?? '',
@@ -68,14 +86,26 @@ async function run(action) {
     busy.value = false
   }
 }
-const add = () => run(() => addCompletion(props.task, props.date))
+// Logging today on a habit whose streak just broke offers to fill in the missed period.
+const offer = ref(null)
+function checkRecovery() {
+  if (props.date !== props.today) return
+  offer.value = recoveryOffer(props.task, state.completions, state.pauses, state.vacations, props.today)
+}
+const fillMissed = () => run(() => recoverStreak(props.task, offer.value)).finally(() => (offer.value = null))
+const startFresh = () => run(() => declineRecovery(props.task, offer.value)).finally(() => (offer.value = null))
+
+const add = () => run(() => addCompletion(props.task, props.date)).then(checkRecovery)
 const remove = () => run(() => removeLastCompletion(props.task, props.date))
 
 const customAmount = ref('')
 function addCustom() {
   const amount = Number(customAmount.value)
   if (!(amount > 0)) return
-  run(() => addCompletion(props.task, props.date, amount)).then(() => (customAmount.value = ''))
+  run(() => addCompletion(props.task, props.date, amount)).then(() => {
+    customAmount.value = ''
+    checkRecovery()
+  })
 }
 </script>
 
@@ -89,7 +119,8 @@ function addCustom() {
         </span>
         <span class="meta">
           <span class="count">{{ fmt(progress) }}/{{ fmt(target) }}</span>
-          <span v-if="paused" class="pill">Paused</span>
+          <span v-if="skipped" class="pill">Skipped</span>
+          <span v-else-if="paused" class="pill">Paused</span>
           <span v-else-if="pin" class="pill" :class="pinTone">{{ pin.label }}</span>
           <span v-if="streak" class="pill habit">🔥 {{ streak }} {{ periodUnit(task, streak) }}</span>
         </span>
@@ -104,12 +135,15 @@ function addCustom() {
 
     <div v-if="expanded" class="details">
       <p class="progress">{{ progressText }}</p>
+      <p v-if="task.notes" class="notes">{{ task.notes }}</p>
       <form v-if="isQuantity" class="custom" @submit.prevent="addCustom">
         <input v-model="customAmount" type="number" inputmode="decimal" min="0" step="any" placeholder="Custom amount" />
         <button type="submit" :disabled="!(Number(customAmount) > 0) || busy">Add</button>
       </form>
+      <p class="stat">{{ statLine }}</p>
       <div class="foot">
-        <p class="stat">{{ statLine }}</p>
+        <button v-if="skipped" class="link" :disabled="busy" @click="unskip">Undo skip</button>
+        <button v-else-if="!paused" class="link" :disabled="busy" @click="skip">{{ skipLabel }}</button>
         <router-link :to="`/task/${task.id}`" class="history">History ›</router-link>
       </div>
     </div>
@@ -117,6 +151,7 @@ function addCustom() {
     <div class="track" role="progressbar" :aria-valuenow="progress" aria-valuemin="0" :aria-valuemax="target">
       <div class="bar" :style="{ width: fill }"></div>
     </div>
+    <RecoveryDialog v-if="offer" :task="task" :offer="offer" @fill="fillMissed" @decline="startFresh" />
   </article>
 </template>
 
@@ -210,6 +245,12 @@ function addCustom() {
   margin: 0;
   font-size: 0.9rem;
 }
+.notes {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  white-space: pre-line;
+}
 .custom {
   display: flex;
   gap: 8px;
@@ -237,7 +278,16 @@ function addCustom() {
   align-items: center;
   gap: 12px;
 }
+.foot .link {
+  padding: 10px 0 2px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
 .history {
+  margin-left: auto;
   flex-shrink: 0;
   padding: 10px 0 2px;
   color: var(--accent);

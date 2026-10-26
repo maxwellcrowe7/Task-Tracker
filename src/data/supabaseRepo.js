@@ -1,4 +1,4 @@
-// Real data in Supabase. Same interface as memoryRepo: load, insert, update, remove.
+// Real data in Supabase. Same interface as memoryRepo: load, insert, insertMany, update, remove.
 // Row Level Security makes every query return only the signed-in user's rows,
 // and user_id defaults to auth.uid() on insert.
 
@@ -40,6 +40,15 @@ export function createSupabaseRepo(client) {
 
     async insert(table, row) {
       return unwrap(await client.from(TABLES[table]).insert(row).select().single())
+    },
+
+    // Inserted in chunks so a long backdated streak doesn't make one huge request.
+    async insertMany(table, rows) {
+      const saved = []
+      for (let i = 0; i < rows.length; i += 500) {
+        saved.push(...unwrap(await client.from(TABLES[table]).insert(rows.slice(i, i + 500)).select()))
+      }
+      return saved
     },
 
     async update(table, id, patch) {

@@ -33,6 +33,11 @@ describe('normalizeTask', () => {
     expect(normalizeTask(base({ target: 2.5 })).unit_type).toBe('quantity')
   })
 
+  it('blank notes are stored as empty', () => {
+    expect(normalizeTask(base({ notes: '   ' })).notes).toBeNull()
+    expect(normalizeTask(base({ notes: ' Check pdga.com \n' })).notes).toBe('Check pdga.com')
+  })
+
   it('converts form strings to numbers and trims the name', () => {
     const t = normalizeTask(base({ name: '  Putting ', target: '1000', quick_add: '50', unit_label: 'putts' }))
     expect(t).toMatchObject({ name: 'Putting', target: 1000, quick_add: 50, unit_type: 'quantity' })

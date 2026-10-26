@@ -6,7 +6,7 @@ import { periodFor, periodUnit } from '../domain/periods.js'
 import { dailyTotals, sumRange } from '../domain/totals.js'
 import { computeStreak } from '../domain/streak.js'
 import { computeStats, formatStats } from '../domain/stats.js'
-import { isPausedOn } from '../domain/pauses.js'
+import { isPausedOn, skipOn } from '../domain/pauses.js'
 import { inSeason } from '../domain/season.js'
 import { formatDate } from '../lib/format.js'
 
@@ -77,6 +77,7 @@ const summary = computed(() => {
   return `${amount}${unit.value} logged · ${current ? 'This' : 'That'} ${name}: ${fmt(periodTotal.value)} / ${fmt(target.value)}`
 })
 const selectedPaused = computed(() => isPausedOn(task.value, selected.value, state.pauses, state.vacations))
+const selectedSkipped = computed(() => Boolean(skipOn(task.value, selected.value, state.pauses)))
 const beforeStart = computed(() => selected.value < task.value.active_since)
 const offSeason = computed(() => !inSeason(task.value, selected.value))
 const unit = computed(() => (task.value.unit_label ? ` ${task.value.unit_label}` : ''))
@@ -112,6 +113,7 @@ function addCustom() {
       <span v-if="streak" class="pill habit">🔥 {{ streak }} {{ periodUnit(task, streak) }}</span>
     </header>
     <p class="stat">{{ statLine }}</p>
+    <p v-if="task.notes" class="notes">{{ task.notes }}</p>
 
     <section class="panel calendar">
       <div class="month-nav">
@@ -171,6 +173,7 @@ function addCustom() {
 
       <p v-if="beforeStart" class="note">This is before the task's starting date, so it won't count.</p>
       <p v-else-if="offSeason" class="note">Out of season on this day, so it doesn't count toward the streak or stats.</p>
+      <p v-else-if="selectedSkipped" class="note">Skipped, so this period doesn't count toward the streak or stats.</p>
       <p v-else-if="selectedPaused" class="note">Paused on this day, so this period doesn't count toward the streak or stats.</p>
     </section>
   </template>
@@ -203,6 +206,11 @@ h1 {
   margin: 6px 0 14px;
   font-size: 0.85rem;
   color: var(--muted);
+}
+.notes {
+  margin: -8px 0 14px;
+  font-size: 0.9rem;
+  white-space: pre-line;
 }
 .calendar {
   padding: 10px;

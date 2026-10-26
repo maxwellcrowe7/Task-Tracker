@@ -4,6 +4,7 @@ import { state } from '../data/store.js'
 import { addDays, todayLocal } from '../domain/dates.js'
 import { formatDate } from '../lib/format.js'
 import { inSeason } from '../domain/season.js'
+import { showsOnDay } from '../domain/status.js'
 import TaskCard from '../components/TaskCard.vue'
 
 // Keep "today" right if the app stays open past midnight.
@@ -36,6 +37,7 @@ const filter = ref('all')
 const visibleTasks = computed(() =>
   state.tasks
     .filter((t) => t.active && t.active_since <= selected.value && inSeason(t, selected.value))
+    .filter((t) => showsOnDay(t, state.completions, selected.value))
     .filter((t) => filter.value === 'all' || t.scope === filter.value)
     .sort((a, b) => a.sort_order - b.sort_order),
 )

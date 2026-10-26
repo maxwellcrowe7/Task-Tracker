@@ -1,5 +1,5 @@
 // Demo mode: everything lives in memory and resets on reload.
-// Same interface as the Supabase repo (added in step 5): load, insert, update, remove.
+// Same interface as the Supabase repo: load, insert, insertMany, update, remove.
 export function createMemoryRepo(data) {
   const db = structuredClone(data)
   let nextId = 1
@@ -15,6 +15,12 @@ export function createMemoryRepo(data) {
       const saved = { id: `${table}-${nextId++}`, user_id: 'demo', created_at: new Date().toISOString(), ...row }
       db[table].push(saved)
       return structuredClone(saved)
+    },
+
+    async insertMany(table, rows) {
+      const saved = []
+      for (const row of rows) saved.push(await this.insert(table, row))
+      return saved
     },
 
     async update(table, id, patch) {

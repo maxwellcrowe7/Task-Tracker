@@ -1,9 +1,10 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { state, setActive, pauseTask, resumeTask, updateTask } from '../data/store.js'
-import { todayLocal, WEEKDAY_SHORT } from '../domain/dates.js'
+import { todayLocal } from '../domain/dates.js'
 import { openPause, currentVacation } from '../domain/pauses.js'
 import { hasSeason } from '../domain/season.js'
+import { hasDue, describeDue } from '../domain/due.js'
 import { formatShortDate } from '../lib/format.js'
 import VacationPanel from '../components/VacationPanel.vue'
 import PlaneIcon from '../components/PlaneIcon.vue'
@@ -32,8 +33,8 @@ function describe(task) {
     ? `${Number(task.target).toLocaleString()} ${task.unit_label ?? ''}`.trim()
     : `${task.target}×`
   let text = `${amount} / ${PER[task.period]}`
-  if (task.pinned_day != null) {
-    text += ` · ${WEEKDAY_SHORT[task.pinned_day]}`
+  if (hasDue(task)) {
+    text += ` · ${describeDue(task)}`
     if (task.grace_days) text += ` +${task.grace_days}d grace`
   }
   if (hasSeason(task)) text += ` · ${formatShortDate(task.season_start)} – ${formatShortDate(task.season_end)}`

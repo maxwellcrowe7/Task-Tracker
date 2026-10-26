@@ -14,13 +14,18 @@ create table public.habit_tasks (
   unit_type          text not null default 'occurrence' check (unit_type in ('occurrence','quantity')),
   unit_label         text,
   quick_add          numeric not null default 1 check (quick_add > 0),
-  pinned_day         smallint check (pinned_day between 0 and 6),
+  pinned_day         smallint check (pinned_day between 0 and 6),   -- weekday, 0 = Sunday
+  due_day            smallint check (due_day = -1 or due_day between 1 and 31),  -- -1 = last day
+  due_week           smallint check (due_week in (-1, 1, 2, 3, 4)),  -- Nth weekday, -1 = last
+  due_month          smallint check (due_month between 1 and 12),
   grace_days         smallint not null default 0 check (grace_days between 0 and 6),
   active             boolean not null default true,
   active_since       date not null default current_date,
   pauses_on_vacation boolean not null default false,
   scope              text not null default 'personal' check (scope in ('work','personal')),
   subtag             text,
+  notes              text,
+  recovery_declined_on date,  -- missed period the user chose not to fill in (streak recovery)
   season_start       date,
   season_end         date,
   sort_order         int not null default 0,
@@ -30,8 +35,15 @@ create table public.habit_tasks (
   constraint habit_no_grace      check (kind <> 'habit' or grace_days = 0),
   constraint biweek_needs_anchor check (period <> 'biweek' or period_anchor is not null),
   constraint anchor_is_sunday    check (period_anchor is null or extract(dow from period_anchor) = 0),
-  constraint pin_weekly_only     check (pinned_day is null or period in ('week','biweek')),
-  constraint grace_needs_pin     check (grace_days = 0 or pinned_day is not null),
+  constraint due_rule_shape      check (
+    (period = 'day' and pinned_day is null and due_day is null and due_week is null and due_month is null)
+    or (period in ('week', 'biweek') and due_day is null and due_week is null and due_month is null)
+    or (period in ('month', 'year')
+        and (due_day is null or due_week is null)
+        and ((due_week is null) = (pinned_day is null))
+        and (period = 'year' or due_month is null)
+        and (period = 'month' or (due_month is null) = (due_day is null and due_week is null)))),
+  constraint grace_needs_due     check (grace_days = 0 or pinned_day is not null or due_day is not null),
   constraint occurrence_whole    check (unit_type <> 'occurrence' or (quick_add = 1 and target = trunc(target)))
 );
 
@@ -57,6 +69,7 @@ create table public.habit_pauses (
   user_id    uuid not null default auth.uid(),
   start_date date not null,
   end_date   date,                      -- null = still paused
+  is_skip    boolean not null default false,  -- one-period "skip" lifeline from the Today view
   created_at timestamptz not null default now(),
   check (end_date is null or end_date >= start_date),
   foreign key (task_id, user_id) references public.habit_tasks(id, user_id) on delete cascade

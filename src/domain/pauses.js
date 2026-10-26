@@ -18,6 +18,11 @@ export const isPausedOn = (task, date, pauses, vacations) =>
 export const isPeriodPaused = (task, period, pauses, vacations) =>
   overlapsAny(pauseRangesFor(task, pauses, vacations), period.start, period.end)
 
+// The skip covering `date` for this task, if any. A skip is a pause row spanning exactly
+// one period, so streaks and stats already treat it like any pause: frozen, not counted.
+export const skipOn = (task, date, pauses) =>
+  pauses.find((p) => p.task_id === task.id && p.is_skip && p.start_date <= date && p.end_date >= date)
+
 // The task's open-ended pause (it's paused "until resumed"), if any.
 export const openPause = (task, pauses) => pauses.find((p) => p.task_id === task.id && p.end_date == null)
 

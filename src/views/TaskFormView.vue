@@ -1,11 +1,13 @@
 <script setup>
 import { reactive, ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { state, createTask, updateTask, deleteTask } from '../data/store.js'
+import { state, createTask, updateTask, deleteTask, backdateStreak } from '../data/store.js'
 import { todayLocal, WEEKDAY_SHORT } from '../domain/dates.js'
 import { EDITABLE_FIELDS, newTaskDefaults, normalizeTask, validateTask, pinAllowed, sundayOf } from '../domain/taskRules.js'
 import { formatDate } from '../lib/format.js'
 import { SEASON_YEAR } from '../domain/season.js'
+import { hasDue, LAST } from '../domain/due.js'
+import { periodUnit } from '../domain/periods.js'
 import Segmented from '../components/Segmented.vue'
 import PlaneIcon from '../components/PlaneIcon.vue'
 
@@ -19,7 +21,7 @@ const missing = computed(() => props.id && !task.value)
 const start = task.value
   ? Object.fromEntries(EDITABLE_FIELDS.map((f) => [f, task.value[f]]))
   : newTaskDefaults(today)
-const form = reactive({ ...start, unit_label: start.unit_label ?? '' })
+const form = reactive({ ...start, unit_label: start.unit_label ?? '', notes: start.notes ?? '' })
 const errors = ref({})
 
 // A 2-week cycle needs a starting week; default to this one.
@@ -41,7 +43,34 @@ const periodOptions = [
 ]
 
 const showPin = computed(() => pinAllowed(form.period))
-const showGrace = computed(() => form.kind === 'chore' && showPin.value && form.pinned_day != null)
+const showDateDue = computed(() => form.period === 'month' || form.period === 'year')
+const showGrace = computed(() => form.kind === 'chore' && hasDue(form))
+const graceLimit = computed(() => ({ week: 'Saturday', biweek: 'the end of the 2 weeks', month: 'the end of the month', year: 'the end of the year' })[form.period])
+
+// Monthly / yearly due rule, edited as a mode plus the details for that mode.
+const dueModes = [
+  { value: 'none', label: 'Any time' },
+  { value: 'date', label: 'On a date' },
+  { value: 'last', label: 'Last day' },
+  { value: 'weekday', label: 'On a weekday' },
+]
+const NTH = [
+  { value: 1, label: '1st' },
+  { value: 2, label: '2nd' },
+  { value: 3, label: '3rd' },
+  { value: 4, label: '4th' },
+  { value: LAST, label: 'Last' },
+]
+const dueMode = computed({
+  get: () =>
+    form.due_week != null ? 'weekday' : form.due_day === LAST ? 'last' : form.due_day != null ? 'date' : 'none',
+  set: (mode) => {
+    form.due_week = mode === 'weekday' ? (form.due_week ?? 1) : null
+    form.pinned_day = mode === 'weekday' ? (form.pinned_day ?? 2) : null
+    form.due_day = mode === 'date' ? (form.due_day > 0 ? form.due_day : 1) : mode === 'last' ? LAST : null
+    if (form.period === 'year') form.due_month = mode === 'none' ? null : (form.due_month ?? 1)
+  },
+})
 const anchorNote = computed(() =>
   form.period_anchor && sundayOf(form.period_anchor) !== form.period_anchor
     ? `Cycles start on Sundays, so this will be saved as ${formatDate(sundayOf(form.period_anchor))}.`
@@ -82,6 +111,11 @@ function seasonPart(field) {
 const from = seasonPart('season_start')
 const until = seasonPart('season_end')
 
+// Habits only: periods before today to mark as already done (an existing streak).
+const existingStreak = ref('')
+const streakCount = computed(() => Math.max(0, Math.floor(Number(existingStreak.value) || 0)))
+const streakUnit = computed(() => periodUnit({ period: form.period }, streakCount.value === 1 ? 1 : 2))
+
 const saving = ref(false)
 async function save() {
   const row = normalizeTask(form)
@@ -89,8 +123,10 @@ async function save() {
   if (Object.keys(errors.value).length) return
   saving.value = true
   try {
-    if (task.value) await updateTask(task.value, row)
-    else await createTask(row)
+    let saved = task.value
+    if (saved) await updateTask(saved, row)
+    else saved = await createTask(row)
+    if (row.kind === 'habit' && streakCount.value > 0) await backdateStreak(saved, streakCount.value, todayLocal())
     router.push('/manage')
   } finally {
     saving.value = false
@@ -181,8 +217,38 @@ async function remove() {
         <span v-if="errors.grace_days" class="error">{{ errors.grace_days }}</span>
       </label>
     </div>
+    <div v-if="showDateDue" class="field">
+      <span class="label">Due</span>
+      <div class="due-row">
+        <select v-model="dueMode" class="input" aria-label="Due">
+          <option v-for="m in dueModes" :key="m.value" :value="m.value">{{ m.label }}</option>
+        </select>
+        <template v-if="dueMode === 'weekday'">
+          <select v-model="form.due_week" class="input" aria-label="Which one">
+            <option v-for="n in NTH" :key="n.value" :value="n.value">{{ n.label }}</option>
+          </select>
+          <select v-model="form.pinned_day" class="input" aria-label="Weekday">
+            <option v-for="(d, i) in WEEKDAY_SHORT" :key="d" :value="i">{{ d }}</option>
+          </select>
+        </template>
+        <select v-if="form.period === 'year' && dueMode !== 'none'" v-model="form.due_month" class="input" aria-label="Month">
+          <option v-for="(m, i) in MONTHS" :key="m" :value="i + 1">{{ m }}</option>
+        </select>
+        <select v-if="dueMode === 'date'" v-model="form.due_day" class="input" aria-label="Day">
+          <option v-for="d in 31" :key="d" :value="d">{{ d }}</option>
+        </select>
+      </div>
+      <span v-if="dueMode === 'date' && form.due_day > 28" class="help">In shorter months it's due on the last day.</span>
+      <span v-if="dueMode !== 'none'" class="help">Shows on Today 3 days before it's due.</span>
+      <span v-if="errors.due" class="error">{{ errors.due }}</span>
+    </div>
+    <label v-if="showDateDue && showGrace" class="field">
+      <span class="label">Grace days</span>
+      <input v-model="form.grace_days" type="number" inputmode="numeric" min="0" max="6" class="input" />
+      <span v-if="errors.grace_days" class="error">{{ errors.grace_days }}</span>
+    </label>
     <p v-if="showGrace" class="help grace-help">
-      Done within the grace days still counts, just marked late. Grace never runs past Saturday.
+      Done within the grace days still counts, just marked late. Grace never runs past {{ graceLimit }}.
     </p>
 
     <label class="field">
@@ -190,6 +256,24 @@ async function remove() {
       <input v-model="form.active_since" type="date" class="input" :max="today" />
       <span class="help">Completions before this date don't count toward streaks or stats.</span>
       <span v-if="errors.active_since" class="error">{{ errors.active_since }}</span>
+    </label>
+
+    <label v-if="form.kind === 'habit'" class="field">
+      <span class="label">Existing streak (optional)</span>
+      <span class="with-unit">
+        <input v-model="existingStreak" type="number" inputmode="numeric" min="0" step="1" class="input" placeholder="0" />
+        <span class="unit">{{ streakUnit }}</span>
+      </span>
+      <span class="help">
+        {{ streakCount
+          ? `Marks the ${streakCount} ${streakUnit} before today as done when you save.`
+          : 'Already on a streak elsewhere? Enter its length, not counting today.' }}
+      </span>
+    </label>
+
+    <label class="field">
+      <span class="label">Notes (optional)</span>
+      <textarea v-model="form.notes" class="input notes" rows="3"></textarea>
     </label>
 
     <div class="field">
@@ -309,6 +393,45 @@ h1 {
   margin: 0 0 16px;
   font-size: 0.78rem;
   color: var(--muted);
+}
+.with-unit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.with-unit .input {
+  max-width: 140px;
+}
+.with-unit .unit {
+  color: var(--muted);
+}
+.notes {
+  height: auto;
+  min-height: 80px;
+  padding: 10px 12px;
+  resize: vertical;
+  line-height: 1.4;
+}
+.due-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.due-row .input {
+  flex: 1 1 28%;
+  min-width: 0;
+}
+.due-row .input:first-child {
+  flex-basis: 100%;
+}
+/* Detail pickers drop their arrows so full month names fit, like the season pickers. */
+.due-row .input:not(:first-child) {
+  padding: 0 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  text-align: center;
+  text-align-last: center;
+  font-size: 0.95rem;
 }
 .vac-toggle {
   display: flex;
