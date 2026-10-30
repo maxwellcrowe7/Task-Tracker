@@ -1,6 +1,8 @@
 <script setup>
 import { toast, hideToast } from '../lib/toast.js'
 
+// Acts on touch-down, not click: phones sometimes swallow the first tap on a
+// freshly shown bar. The click fallback (keyboard) is a no-op once it has run.
 function undo() {
   const fn = toast.undo
   hideToast()
@@ -12,7 +14,7 @@ function undo() {
   <Transition name="toast">
     <div v-if="toast.text" :key="toast.id" class="toast" role="status">
       <span>{{ toast.text }}</span>
-      <button v-if="toast.undo" @click="undo">Undo</button>
+      <button v-if="toast.undo" @pointerdown.prevent="undo" @click="undo">Undo</button>
     </div>
   </Transition>
 </template>
@@ -25,27 +27,35 @@ function undo() {
   bottom: calc(76px + env(safe-area-inset-bottom));
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
   max-width: calc(100vw - 32px);
-  padding: 10px 12px 10px 16px;
+  padding: 0 0 0 16px;
+  overflow: hidden;
   border-radius: 10px;
   border: 1px solid rgb(255 255 255 / 0.14);
   background: #2c2c2e;
   color: #fff;
+  min-height: 48px;
   font-size: 0.9rem;
   box-shadow: 0 6px 20px rgb(0 0 0 / 0.2);
   transform: translateX(-50%);
 }
 .toast span {
+  padding: 12px 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 button {
   flex: none;
-  padding: 4px 8px;
+  align-self: stretch;
+  min-width: 76px;
+  min-height: 48px;
+  padding: 0 18px;
   border: 0;
-  border-radius: 6px;
+  border-left: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: 0;
+  font-size: 0.95rem;
   background: none;
   color: #ffd60a;
   font-weight: 600;

@@ -17,13 +17,18 @@ const full = ref(false) // dragged far enough that letting go runs the action
 const me = Symbol()
 const content = ref(null)
 const rowWidth = () => content.value?.offsetWidth ?? 360
+const fullAt = () => Math.max(width.value + 20, rowWidth() * 0.38)
 
 let start = null // { x, y, base }
+let last = null // { x, t } of the latest move, for flick speed
+let speed = 0 // px per ms, negative = moving left
 let moved = false
 
 function down(e) {
   if (e.pointerType !== 'touch' || !props.actions.length) return
   start = { x: e.clientX, y: e.clientY, base: x.value }
+  last = { x: e.clientX, t: e.timeStamp }
+  speed = 0
   moved = false
 }
 function move(e) {
@@ -36,10 +41,13 @@ function move(e) {
     moved = true
     openRow.value = me
   }
+  const dt = e.timeStamp - last.t
+  if (dt > 0) speed = speed * 0.5 + ((e.clientX - last.x) / dt) * 0.5
+  last = { x: e.clientX, t: e.timeStamp }
   // Rubber-band a little to the right; to the left the button stretches with you.
   const next = start.base + dx
   x.value = next > 0 ? next / 4 : Math.max(next, -rowWidth())
-  const isFull = -x.value > Math.max(width.value + 40, rowWidth() * 0.55)
+  const isFull = -x.value > fullAt()
   if (isFull && !full.value) navigator.vibrate?.(8)
   full.value = isFull
 }
@@ -48,6 +56,8 @@ function up() {
   start = null
   if (!dragging.value) return
   dragging.value = false
+  // A quick flick left counts as a long swipe even if it stopped short.
+  if (speed < -0.7 && -x.value > width.value * 0.8) full.value = true
   if (full.value) {
     full.value = false
     x.value = -rowWidth()

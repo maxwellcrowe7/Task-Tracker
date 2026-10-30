@@ -7,7 +7,7 @@ let timer
 export function showToast(text, undo = null) {
   clearTimeout(timer)
   Object.assign(toast, { text, undo, id: toast.id + 1 })
-  timer = setTimeout(hideToast, 5000)
+  timer = setTimeout(hideToast, 6000)
 }
 export function hideToast() {
   clearTimeout(timer)
