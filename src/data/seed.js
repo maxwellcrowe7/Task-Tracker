@@ -115,5 +115,47 @@ export function buildSampleData(today) {
   const pauses = [{ id: 'p1', task_id: 'washcar', user_id: 'demo', start_date: addDays(today, -10), end_date: null }]
   const vacations = [{ id: 'v1', user_id: 'demo', start_date: addDays(weeksBack(3), 4), end_date: addDays(weeksBack(3), 6) }]
 
-  return { tasks, completions, pauses, vacations }
+  // One-off to-dos, a few per side.
+  const todo = (id, scope, title, extra = {}) => ({
+    id, user_id: 'demo', scope, title, notes: null, due_date: null, lead_days: null, show_from: null, priority: null, done_on: null,
+    sort_order: 0, created_at: `${addDays(today, -5)}T12:00:00Z`, ...extra,
+  })
+  const tag = (id, name, color, scope, fav = false, parent_id = null) => ({ id, user_id: 'demo', name, color, scope, fav, parent_id, sort_order: 0 })
+  const tags = [
+    tag('g-errands', 'errands', 'forest', 'personal', true),
+    tag('g-travel', 'travel', 'plum', 'personal', true),
+    tag('g-house', 'house', 'amber', 'personal', true),
+    tag('g-sports', 'sports', 'sky', 'personal'),
+    tag('g-disc', 'disc golf', 'slate', 'personal', true, 'g-sports'),
+    tag('g-football', 'football', 'orange', 'personal', false, 'g-sports'),
+    tag('g-wrestling', 'wrestling', 'red', 'personal', false, 'g-sports'),
+    tag('g-siop', 'SIOP', 'teal', 'work', true),
+    tag('g-vendors', 'vendors', 'terracotta', 'work'),
+    tag('g-urgent', 'urgent', 'rose', 'both'),
+  ].map((t, i) => ({ ...t, sort_order: i + 1 }))
+
+  const todos = [
+    todo('t-library', 'personal', 'Return library books', { due_date: today, tag_ids: ['g-errands'] }),
+    todo('t-dentist', 'personal', 'Call dentist about cleaning', { priority: 'high' }),
+    todo('t-trip', 'personal', 'Plan Michigan trip', {
+      notes: 'Look at cabins near Traverse City.',
+      tag_ids: ['g-travel'],
+      steps: [
+        { id: 's-1', text: 'Pick dates', done: true },
+        { id: 's-2', text: 'Book a cabin', done: false, due_date: addDays(today, 2) },
+        { id: 's-3', text: 'Ask about dog-friendly beaches', done: false },
+        { id: 's-4', text: 'Plan the drive', done: false },
+      ],
+    }),
+    todo('t-putter', 'personal', 'Look into a new putter', { due_date: addDays(today, 9), tag_ids: ['g-disc'] }),
+    todo('t-bag', 'personal', 'Order new disc bag', { done_on: today, tag_ids: ['g-disc'] }),
+    todo('t-snow', 'personal', 'Put on winter tires', { show_from: addDays(today, 10) }),
+    todo('t-fantasy', 'personal', 'Set fantasy football lineup', { due_date: addDays(today, 3), tag_ids: ['g-football'] }),
+    todo('t-singlet', 'personal', 'Find wrestling tournament schedule', { tag_ids: ['g-wrestling'] }),
+    todo('t-gross', 'work', 'Gross requirements report', { due_date: addDays(today, -3), tag_ids: ['g-siop', 'g-urgent'] }),
+    todo('t-minmax', 'work', 'Update Min/Max file', { priority: 'high', tag_ids: ['g-siop'] }),
+    todo('t-vendor', 'work', 'Vendor follow-ups', { due_date: addDays(today, 2), tag_ids: ['g-vendors'] }),
+  ].map((t, i) => ({ tag_ids: [], steps: [], ...t, sort_order: i + 1 }))
+
+  return { tasks, completions, pauses, vacations, todos, tags }
 }

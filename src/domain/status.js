@@ -37,15 +37,27 @@ export function pinStatus(task, completions, date) {
   return { state: 'overdue', label: 'Overdue' }
 }
 
-// Whether a task belongs on the Today list for `date`. Monthly and yearly due-date tasks
-// show up LEAD_DAYS before they're due and stay until done (still showing "Done" on the
-// day you do it); if missed they stay as Overdue until the period ends. Everything else
-// shows every day.
-export function showsOnDay(task, completions, date) {
-  if (!hasDue(task) || task.period === 'week' || task.period === 'biweek') return true
+// Default "show before" days for tasks saved before lead_days existed.
+export const DEFAULT_LEAD_DAYS = 1
+export const leadDays = (task) => task.lead_days ?? DEFAULT_LEAD_DAYS
+
+// Where a task stands on the Today list for `date`:
+//   'open'   — still to do: shows in the main list
+//   'done'   — finished, and something was logged that day: shows under Completed
+//   'hidden' — not on Today (already finished earlier this period, not in its window yet,
+//              or its window has passed and it counts as a miss)
+// Tasks with a due date appear `lead_days` ahead and stay through the due day (plus grace
+// for chores). Everything else (daily habits, counted goals like 4×/week) stays all period
+// until it's met.
+export function todayState(task, completions, date) {
   const period = periodFor(task, date)
-  if (dueBeforeStart(task, period)) return false
-  if (date < addDays(dueDate(task, period), -LEAD_DAYS)) return false
-  const doneBefore = sumRange(dailyTotals(task, completions), period.start, addDays(date, -1))
-  return doneBefore < Number(task.target)
+  const totals = dailyTotals(task, completions)
+  if (sumRange(totals, period.start, date) >= Number(task.target)) {
+    return totals.has(date) ? 'done' : 'hidden'
+  }
+  if (!hasDue(task)) return 'open'
+  if (dueBeforeStart(task, period)) return 'hidden'
+  const due = dueDate(task, period)
+  const last = task.kind === 'chore' ? graceEnd(task, period) : due
+  return date >= addDays(due, -leadDays(task)) && date <= last ? 'open' : 'hidden'
 }

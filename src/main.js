@@ -10,6 +10,8 @@ import { state } from './data/store.js'
 import { restoreSession } from './data/session.js'
 import { startTheme } from './lib/theme.js'
 import SettingsView from './views/SettingsView.vue'
+import TodosView from './views/TodosView.vue'
+import TodoPage from './views/TodoPage.vue'
 import './styles.css'
 
 // Hash routing works on a GitHub Pages subpath without server config.
@@ -23,6 +25,8 @@ const router = createRouter({
     { path: '/manage/:id', component: TaskFormView, props: true },
     { path: '/task/:id', component: TaskHistoryView, props: true },
     { path: '/settings', component: SettingsView },
+    { path: '/todos', component: TodosView },
+    { path: '/todo/:id', component: TodoPage, props: true },
   ],
   scrollBehavior: () => ({ top: 0 }),
 })

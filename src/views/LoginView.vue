@@ -32,7 +32,7 @@ async function demo() {
 <template>
   <main class="login">
     <img :src="logo" alt="" class="logo" />
-    <h1><span class="brand-text">Habit Tracker</span></h1>
+    <h1>Upkeep</h1>
 
     <form class="panel" @submit.prevent="submit">
       <label class="field">

@@ -18,7 +18,8 @@ create table public.habit_tasks (
   due_day            smallint check (due_day = -1 or due_day between 1 and 31),  -- -1 = last day
   due_week           smallint check (due_week in (-1, 1, 2, 3, 4)),  -- Nth weekday, -1 = last
   due_month          smallint check (due_month between 1 and 12),
-  grace_days         smallint not null default 0 check (grace_days between 0 and 6),
+  grace_days         smallint not null default 0 check (grace_days between 0 and 6),  -- after the due day (chores)
+  lead_days          smallint not null default 1 check (lead_days between 0 and 31),  -- shows on Today this many days before
   active             boolean not null default true,
   active_since       date not null default current_date,
   pauses_on_vacation boolean not null default false,
@@ -107,3 +108,61 @@ create policy owner_all on public.habit_pauses      for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 create policy owner_all on public.habit_vacations   for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+
+-- ========== to-dos ==========
+create table public.habit_todos (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  scope      text not null default 'personal' check (scope in ('work', 'personal')),
+  title      text not null check (length(trim(title)) > 0),
+  notes      text,
+  due_date   date,                                   -- optional
+  lead_days  smallint not null default 1 check (lead_days between 0 and 31),  -- shows on Today this many days before
+  priority   text check (priority in ('low', 'medium', 'high')),
+  done_on    date,                                   -- local date it was checked off; null = still open
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+create index habit_todos_user on public.habit_todos (user_id, done_on);
+
+grant select, insert, update, delete on public.habit_todos to authenticated;
+alter table public.habit_todos enable row level security;
+create policy owner_all on public.habit_todos for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+
+-- ========== tags ==========
+create table public.habit_tags (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  name       text not null check (length(trim(name)) > 0),
+  color      text not null default 'slate',            -- one of the palette ids in src/domain/tags.js
+  scope      text not null default 'both' check (scope in ('personal', 'work', 'both')),
+  fav        boolean not null default false,           -- shown as a one-tap chip in the add bar
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+grant select, insert, update, delete on public.habit_tags to authenticated;
+alter table public.habit_tags enable row level security;
+create policy owner_all on public.habit_tags for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+
+alter table public.habit_todos add column tag_ids uuid[] not null default '{}';
+alter table public.habit_tasks add column tag_ids uuid[] not null default '{}';
+
+-- Tags inside tags: "football" can live inside "sports". Picking "sports" then shows
+-- everything tagged with it or any tag nested under it. Run once in the Supabase SQL editor.
+alter table public.habit_tags add column parent_id uuid references public.habit_tags(id) on delete set null;
+
+-- Steps: a checklist inside a to-do, saved as a list of { id, text, done }.
+-- Run once in the Supabase SQL editor.
+alter table public.habit_todos add column steps jsonb not null default '[]';
+
+-- To-dos now show on Today right away by default, even with a due date. Optionally
+-- one can wait: until lead_days before its due date, or until show_from (a date).
+-- Run once in the Supabase SQL editor.
+alter table public.habit_todos alter column lead_days drop not null;
+alter table public.habit_todos alter column lead_days set default null;
+alter table public.habit_todos drop constraint if exists habit_todos_lead_days_check;
+alter table public.habit_todos add constraint habit_todos_lead_days_check check (lead_days between 0 and 365);
+update public.habit_todos set lead_days = null where lead_days is not null;
+alter table public.habit_todos add column show_from date;

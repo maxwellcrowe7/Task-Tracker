@@ -8,9 +8,18 @@ const TABLES = {
   completions: 'habit_completions',
   pauses: 'habit_pauses',
   vacations: 'habit_vacations',
+  todos: 'habit_todos',
+  tags: 'habit_tags',
 }
 
 const PAGE = 1000 // Supabase returns at most 1000 rows per request
+
+// A table added in a newer version that hasn't been created in Supabase yet loads as
+// empty instead of breaking the whole app (the save will show an error banner).
+function missingTable(key, error) {
+  if ((key === 'todos' || key === 'tags') && (error.code === 'PGRST205' || error.code === '42P01')) return []
+  throw error
+}
 
 function unwrap({ data, error }) {
   if (error) throw error
@@ -34,7 +43,7 @@ export function createSupabaseRepo(client) {
 
     async load() {
       const keys = Object.keys(TABLES)
-      const results = await Promise.all(keys.map((k) => fetchAll(TABLES[k])))
+      const results = await Promise.all(keys.map((k) => fetchAll(TABLES[k]).catch((e) => missingTable(k, e))))
       return Object.fromEntries(keys.map((k, i) => [k, results[i]]))
     },
 

@@ -5,6 +5,7 @@ import { state, createTask, updateTask, deleteTask, backdateStreak } from '../da
 import { todayLocal, WEEKDAY_SHORT } from '../domain/dates.js'
 import { EDITABLE_FIELDS, newTaskDefaults, normalizeTask, validateTask, pinAllowed, sundayOf } from '../domain/taskRules.js'
 import { formatDate } from '../lib/format.js'
+import { context } from '../lib/context.js'
 import { SEASON_YEAR } from '../domain/season.js'
 import { hasDue, LAST } from '../domain/due.js'
 import { periodUnit } from '../domain/periods.js'
@@ -20,7 +21,7 @@ const missing = computed(() => props.id && !task.value)
 
 const start = task.value
   ? Object.fromEntries(EDITABLE_FIELDS.map((f) => [f, task.value[f]]))
-  : newTaskDefaults(today)
+  : { ...newTaskDefaults(today), scope: context.scope }
 const form = reactive({ ...start, unit_label: start.unit_label ?? '', notes: start.notes ?? '' })
 const errors = ref({})
 
@@ -141,9 +142,10 @@ async function remove() {
 </script>
 
 <template>
+  <div class="page">
   <header class="head">
-    <router-link to="/manage" class="back">‹ Manage</router-link>
-    <h1><span class="brand-text">{{ task ? 'Edit task' : 'New task' }}</span></h1>
+    <router-link to="/manage" class="back">‹ Routines</router-link>
+    <h1 class="page-title">{{ task ? 'Edit' : 'New routine' }}</h1>
   </header>
 
   <p v-if="missing" class="panel">That task doesn't exist (demo data resets when you reload).</p>
@@ -203,20 +205,13 @@ async function remove() {
       <span v-if="errors.period_anchor" class="error">{{ errors.period_anchor }}</span>
     </label>
 
-    <div v-if="showPin" class="pair">
-      <label class="field">
-        <span class="label">Due day</span>
-        <select v-model="form.pinned_day" class="input">
-          <option :value="null">Any day</option>
-          <option v-for="(d, i) in WEEKDAY_SHORT" :key="d" :value="i">{{ d }}</option>
-        </select>
-      </label>
-      <label v-if="showGrace" class="field">
-        <span class="label">Grace days</span>
-        <input v-model="form.grace_days" type="number" inputmode="numeric" min="0" max="6" class="input" />
-        <span v-if="errors.grace_days" class="error">{{ errors.grace_days }}</span>
-      </label>
-    </div>
+    <label v-if="showPin" class="field">
+      <span class="label">Due day</span>
+      <select v-model="form.pinned_day" class="input">
+        <option :value="null">Any day</option>
+        <option v-for="(d, i) in WEEKDAY_SHORT" :key="d" :value="i">{{ d }}</option>
+      </select>
+    </label>
     <div v-if="showDateDue" class="field">
       <span class="label">Due</span>
       <div class="due-row">
@@ -239,16 +234,28 @@ async function remove() {
         </select>
       </div>
       <span v-if="dueMode === 'date' && form.due_day > 28" class="help">In shorter months it's due on the last day.</span>
-      <span v-if="dueMode !== 'none'" class="help">Shows on Today 3 days before it's due.</span>
       <span v-if="errors.due" class="error">{{ errors.due }}</span>
     </div>
-    <label v-if="showDateDue && showGrace" class="field">
-      <span class="label">Grace days</span>
-      <input v-model="form.grace_days" type="number" inputmode="numeric" min="0" max="6" class="input" />
-      <span v-if="errors.grace_days" class="error">{{ errors.grace_days }}</span>
-    </label>
-    <p v-if="showGrace" class="help grace-help">
-      Done within the grace days still counts, just marked late. Grace never runs past {{ graceLimit }}.
+    <div v-if="hasDue(form)" class="pair">
+      <label class="field">
+        <span class="label">Show before</span>
+        <span class="with-unit">
+          <input v-model="form.lead_days" type="number" inputmode="numeric" min="0" max="31" class="input" />
+          <span class="unit">{{ Number(form.lead_days) === 1 ? 'day' : 'days' }}</span>
+        </span>
+        <span v-if="errors.lead_days" class="error">{{ errors.lead_days }}</span>
+      </label>
+      <label v-if="showGrace" class="field">
+        <span class="label">Grace after</span>
+        <span class="with-unit">
+          <input v-model="form.grace_days" type="number" inputmode="numeric" min="0" max="6" class="input" />
+          <span class="unit">{{ Number(form.grace_days) === 1 ? 'day' : 'days' }}</span>
+        </span>
+        <span v-if="errors.grace_days" class="error">{{ errors.grace_days }}</span>
+      </label>
+    </div>
+    <p v-if="hasDue(form)" class="help grace-help">
+      Shows on Today {{ form.lead_days || 0 }} {{ Number(form.lead_days) === 1 ? 'day' : 'days' }} before it's due<template v-if="showGrace">, and drops off as missed {{ form.grace_days || 0 }} {{ Number(form.grace_days) === 1 ? 'day' : 'days' }} after (never past {{ graceLimit }}). Done in the grace days counts, marked late</template>.
     </p>
 
     <label class="field">
@@ -328,11 +335,21 @@ async function remove() {
       <button v-if="task" type="button" class="btn danger delete" @click="remove">Delete</button>
     </div>
   </form>
+  </div>
 </template>
 
 <style scoped>
+.page {
+  max-width: 620px;
+  margin: 0 auto;
+}
+@media (min-width: 900px) {
+  .page {
+    padding: 28px 40px 80px;
+  }
+}
 .head {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 .back {
   display: inline-block;

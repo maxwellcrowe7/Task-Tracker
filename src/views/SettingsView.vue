@@ -4,6 +4,7 @@ import { state } from '../data/store.js'
 import { signOut } from '../data/session.js'
 import { themeSettings } from '../lib/theme.js'
 import Segmented from '../components/Segmented.vue'
+import TagManager from '../components/TagManager.vue'
 
 const modeOptions = [
   { value: 'light', label: 'Light' },
@@ -21,7 +22,8 @@ const modeHelp = computed(
 </script>
 
 <template>
-  <h1 class="title"><span class="brand-text">Settings</span></h1>
+  <div class="page">
+  <h1 class="page-title title">Settings</h1>
 
   <section class="panel">
     <h2>Appearance</h2>
@@ -43,6 +45,11 @@ const modeHelp = computed(
   </section>
 
   <section class="panel">
+    <h2>Tags</h2>
+    <TagManager />
+  </section>
+
+  <section class="panel">
     <h2>Account</h2>
     <template v-if="state.demo">
       <p class="sub">You're looking at sample data. Nothing is saved.</p>
@@ -53,9 +60,19 @@ const modeHelp = computed(
       <button class="btn" @click="signOut">Sign out</button>
     </template>
   </section>
+  </div>
 </template>
 
 <style scoped>
+.page {
+  max-width: 620px;
+  margin: 0 auto;
+}
+@media (min-width: 900px) {
+  .page {
+    padding: 34px 40px 80px;
+  }
+}
 .title {
   margin: 4px 0 14px;
   font-size: 1.5rem;

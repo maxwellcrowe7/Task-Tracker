@@ -15,13 +15,15 @@ export const state = reactive({
   completions: [], // kept in creation order, oldest first
   pauses: [],
   vacations: [],
+  todos: [],
+  tags: [],
 })
 
 let repo
 
 export async function initStore(newRepo) {
   repo = newRepo
-  Object.assign(state, await repo.load(), { ready: true, demo: repo.mode === 'demo' })
+  Object.assign(state, { todos: [], tags: [] }, await repo.load(), { ready: true, demo: repo.mode === 'demo' })
 }
 
 const removeFrom = (list, row) => list.splice(list.indexOf(row), 1)
@@ -130,6 +132,55 @@ export async function undoSkip(task, date) {
   if (!skip) return
   await repo.remove('pauses', skip.id)
   removeFrom(state.pauses, skip)
+}
+
+// ---- To-dos ----
+
+export async function addTodo(fields) {
+  const sort_order = Math.max(0, ...state.todos.map((t) => t.sort_order)) + 1
+  const saved = await repo.insert('todos', { notes: null, due_date: null, done_on: null, priority: null, tag_ids: [], steps: [], ...fields, sort_order })
+  state.todos.push(saved)
+  return saved
+}
+
+export async function updateTodo(todo, patch) {
+  Object.assign(todo, await repo.update('todos', todo.id, patch))
+}
+
+// Check off on `date` (the day it was done), or pass null to reopen.
+export const setTodoDone = (todo, date) => updateTodo(todo, { done_on: date })
+
+export async function deleteTodo(todo) {
+  await repo.remove('todos', todo.id)
+  removeFrom(state.todos, todo)
+}
+
+// ---- Tags ----
+
+export async function addTag(fields) {
+  const sort_order = Math.max(0, ...state.tags.map((t) => t.sort_order)) + 1
+  const saved = await repo.insert('tags', { fav: false, parent_id: null, ...fields, sort_order })
+  state.tags.push(saved)
+  return saved
+}
+
+export async function updateTag(tag, patch) {
+  Object.assign(tag, await repo.update('tags', tag.id, patch))
+}
+
+// Deleting a tag also takes it off every to-do and routine that had it, and moves
+// any tags nested inside it up one level.
+export async function deleteTag(tag) {
+  for (const kid of state.tags.filter((t) => t.parent_id === tag.id)) {
+    Object.assign(kid, await repo.update('tags', kid.id, { parent_id: tag.parent_id ?? null }))
+  }
+  for (const list of [['todos', state.todos], ['tasks', state.tasks]]) {
+    for (const item of list[1].filter((x) => x.tag_ids?.includes(tag.id))) {
+      Object.assign(item, await repo.update(list[0], item.id, { tag_ids: item.tag_ids.filter((id) => id !== tag.id) }))
+    }
+  }
+  await repo.remove('tags', tag.id)
+  removeFrom(state.tags, tag)
 }
 
 // ---- Vacations ----

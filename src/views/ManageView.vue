@@ -6,6 +6,7 @@ import { openPause, currentVacation } from '../domain/pauses.js'
 import { hasSeason } from '../domain/season.js'
 import { hasDue, describeDue } from '../domain/due.js'
 import { formatShortDate } from '../lib/format.js'
+import { context } from '../lib/context.js'
 import VacationPanel from '../components/VacationPanel.vue'
 import PlaneIcon from '../components/PlaneIcon.vue'
 
@@ -17,6 +18,7 @@ const searching = computed(() => query.value.trim() !== '')
 const sorted = computed(() => {
   const q = fold(query.value.trim())
   return state.tasks
+    .filter((t) => t.scope === context.scope)
     .filter((t) => !q || fold(t.name).includes(q))
     .sort((a, b) => a.sort_order - b.sort_order)
 })
@@ -38,7 +40,7 @@ function describe(task) {
     if (task.grace_days) text += ` +${task.grace_days}d grace`
   }
   if (hasSeason(task)) text += ` · ${formatShortDate(task.season_start)} – ${formatShortDate(task.season_end)}`
-  return `${text} · ${task.scope === 'work' ? 'Work' : 'Personal'}`
+  return text
 }
 
 const isPaused = (task) => Boolean(openPause(task, state.pauses))
@@ -69,8 +71,9 @@ const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) :
 </script>
 
 <template>
+  <div class="page">
   <header class="head">
-    <h1><span class="brand-text">Manage</span></h1>
+    <h1 class="page-title">Routines</h1>
     <div class="head-actions">
       <button
         class="plane"
@@ -83,7 +86,7 @@ const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) :
         <PlaneIcon />
         <span v-if="vacationSet" class="dot" aria-hidden="true"></span>
       </button>
-      <router-link to="/manage/new" class="btn primary add">+ Add task</router-link>
+      <router-link to="/manage/new" class="btn primary add">+ New</router-link>
     </div>
   </header>
 
@@ -105,7 +108,7 @@ const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) :
   <VacationPanel v-if="vacationOpen" v-show="!searching || vacationMode" v-model:highlight="vacationMode" />
 
   <section v-for="group in groups" :key="group.kind" class="group">
-    <h2>{{ group.title }}</h2>
+    <h2 class="section-head">{{ group.title }} <span class="count">{{ group.tasks.length }}</span></h2>
     <ul>
       <li v-for="task in group.tasks" :key="task.id" class="row" :class="[group.kind, { off: !task.active, paused: task.active && isPaused(task), vac: vacationMode && task.pauses_on_vacation }]">
         <router-link :to="`/manage/${task.id}`" class="info">
@@ -146,18 +149,24 @@ const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) :
     </ul>
   </section>
   <p v-if="searching && !sorted.length" class="no-match">No tasks match “{{ query.trim() }}”.</p>
+  </div>
 </template>
 
 <style scoped>
+.page {
+  max-width: 680px;
+  margin: 0 auto;
+}
+@media (min-width: 900px) {
+  .page {
+    padding: 34px 40px 80px;
+  }
+}
 .head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
-}
-h1 {
-  margin: 0;
-  font-size: 1.4rem;
+  margin-bottom: 16px;
 }
 .head-actions {
   display: flex;
@@ -168,12 +177,11 @@ h1 {
   position: relative;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--surface);
-  box-shadow: var(--shadow);
   color: var(--muted);
 }
 .plane.set {
@@ -215,8 +223,9 @@ h1 {
 }
 .search .input {
   padding: 0 40px 0 38px;
-  border-radius: 12px;
-  box-shadow: var(--shadow);
+  border-color: transparent;
+  border-radius: 10px;
+  background: var(--raised);
   font-size: 1rem; /* 16px+ stops iPhone zooming in on focus */
 }
 .search .input::-webkit-search-cancel-button {
@@ -244,14 +253,7 @@ h1 {
   text-decoration: none;
 }
 .group {
-  margin-top: 20px;
-}
-h2 {
-  margin: 0 0 8px;
-  font-size: 0.8rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
+  margin-top: 6px;
 }
 ul {
   margin: 0;
@@ -259,21 +261,19 @@ ul {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 .row {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px 8px 0;
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--habit);
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  margin: 0 -10px;
+  padding: 4px 10px;
+  border-radius: 8px;
 }
-.row.chore {
-  border-left-color: var(--chore);
+@media (hover: hover) {
+  .row:hover {
+    background: var(--hover);
+  }
 }
 .row.off .info,
 .row.paused .info {
@@ -285,12 +285,12 @@ ul {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 4px 0 4px 12px;
+  padding: 4px 0;
   color: inherit;
   text-decoration: none;
 }
 .name {
-  font-weight: 600;
+  font-weight: 500;
 }
 .desc {
   font-size: 0.8rem;

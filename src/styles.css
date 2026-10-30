@@ -1,73 +1,83 @@
-/* Light theme is the default; dark applies when <html data-theme="dark">
-   (set by src/lib/theme.js from the Settings choice). */
+/* Upkeep design tokens. Light is the default; dark applies when <html data-theme="dark">
+   (set by src/lib/theme.js from the Settings choice). The look follows Things 3: white
+   pages, hairline rows instead of boxes, round checks, one blue accent. */
 :root {
   color-scheme: light;
-  --bg: #f3f5f8;
+  --bg: #ffffff;
   --surface: #ffffff;
-  --text: #1d2330;
-  --muted: #667085;
-  --border: #e1e5eb;
-  --track: #e8ebf0;
-  --shadow: 0 1px 2px rgb(16 24 40 / 0.05), 0 4px 14px rgb(16 24 40 / 0.06);
+  --sidebar: #f5f5f7;
+  --raised: #f5f5f7; /* quick-add bar, hovered rows, segmented controls */
+  --hover: #f7f7f9;
+  --selected: #e8f0fc;
+  --text: #1c1c1e;
+  --muted: #8e8e93;
+  --faint: #c7c7cc;
+  --border: #e5e5ea;
+  --track: #e5e5ea;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.06), 0 4px 14px rgb(0 0 0 / 0.05);
 
-  /* Brand blend from the app icon: blue into green. */
-  --brand-a: #3b7ce6;
-  --brand-b: #2e9e5f;
-  --brand: linear-gradient(135deg, var(--brand-a), var(--brand-b));
-  --wash-a: rgb(59 124 230 / 0.16);
-  --wash-b: rgb(46 158 95 / 0.13);
+  --accent: #2b7de9;
+  --accent-soft: #d6e6fb;
+  --star: #f6c142;
+  --flame: #ff9500;
+  --due: #d8930f;
+  --late: #ff3b30;
 
-  --habit: #2f6fdb;
-  --habit-2: #5b8ff0;
-  --habit-soft: #e6eefc;
-  --chore: #2e8b57;
-  --chore-2: #36b07a;
+  /* Older names still used by some screens. */
+  --brand: var(--accent);
+  --habit: var(--accent);
+  --habit-2: var(--accent);
+  --habit-soft: var(--accent-soft);
+  --chore: #2e9e5f;
+  --chore-2: #2e9e5f;
   --chore-soft: #e2f3e9;
-  --amber: #9a6512;
+  --amber: #a26a0b;
   --amber-soft: #fcf1d8;
   --amber-strong: #f3d18a;
-  --neutral-soft: #eceef2;
-  --switch-on: #2f9e5f;
-  --switch-off: #d64b3f;
+  --neutral-soft: #f2f2f7;
+  --switch-on: #34c759;
+  --switch-off: #ff3b30;
   --vacation: #0f8f9a;
   --vacation-soft: #e0f4f5;
-  --met: #cdeedb;
+  --met: var(--accent-soft);
 
-  --radius: 14px;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --radius: 10px;
+  font-family: Inter, -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #0f1218;
-  --surface: #191e27;
-  --text: #e6e9ef;
-  --muted: #9aa3b2;
-  --border: #272d38;
-  --track: #2a303b;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 18px rgb(0 0 0 / 0.25);
+  --bg: #1c1c1e;
+  --surface: #1c1c1e;
+  --sidebar: #232326;
+  --raised: #2a2a2d;
+  --hover: #252528;
+  --selected: #1f3352;
+  --text: #f2f2f7;
+  --muted: #98989f;
+  --faint: #5a5a5f;
+  --border: #38383a;
+  --track: #3a3a3c;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 18px rgb(0 0 0 / 0.3);
 
-  --brand-a: #5b8ff0;
-  --brand-b: #3fb27a;
-  --wash-a: rgb(91 143 240 / 0.2);
-  --wash-b: rgb(63 178 122 / 0.14);
+  --accent: #4a90f0;
+  --accent-soft: #1f3352;
+  --due: #f0b43c;
+  --late: #ff6961;
 
-  --habit: #79a6fa;
-  --habit-2: #a1c0ff;
-  --habit-soft: #1d2a44;
-  --chore: #62c992;
-  --chore-2: #8ee0b5;
+  --chore: #4cc77f;
+  --chore-2: #4cc77f;
   --chore-soft: #173027;
   --amber: #f0bd5e;
   --amber-soft: #392d14;
   --amber-strong: #5c4515;
-  --neutral-soft: #262c36;
-  --switch-on: #3fae6e;
-  --switch-off: #c9473d;
+  --neutral-soft: #2c2c2e;
+  --switch-on: #30d158;
+  --switch-off: #ff453a;
   --vacation: #4cc3cd;
   --vacation-soft: #13313a;
-  --met: #1f4d35;
 }
 
 * {
@@ -77,13 +87,9 @@
 body {
   margin: 0;
   min-height: 100vh;
-  /* A soft wash of the icon's blue and green across the top of every screen. */
-  background:
-    radial-gradient(90% 320px at 0% 0%, var(--wash-a), transparent),
-    radial-gradient(90% 320px at 100% 0%, var(--wash-b), transparent),
-    var(--bg);
-  background-repeat: no-repeat;
+  background: var(--bg);
   color: var(--text);
+  font-size: 15px;
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -104,18 +110,22 @@ button:disabled {
   opacity: 0.35;
 }
 
+a {
+  color: var(--accent);
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
-  padding: 2px 9px;
-  border-radius: 999px;
+  padding: 1px 7px;
+  border-radius: 5px;
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: 500;
   white-space: nowrap;
   background: var(--neutral-soft);
   color: var(--muted);
 }
-.pill.habit { background: var(--habit-soft); color: var(--habit); }
+.pill.habit { background: var(--accent-soft); color: var(--accent); }
 .pill.chore { background: var(--chore-soft); color: var(--chore); }
 .pill.amber { background: var(--amber-soft); color: var(--amber); }
 .pill.amber-strong { background: var(--amber-strong); color: var(--text); }
@@ -131,25 +141,26 @@ button:disabled {
 
 /* Shared form and button styles */
 .btn {
-  min-height: 44px;
-  padding: 0 16px;
+  min-height: 40px;
+  padding: 0 14px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--surface);
-  font-weight: 600;
+  font-weight: 500;
 }
 .btn.primary {
   border-color: transparent;
-  background: var(--brand);
+  background: var(--accent);
   color: #fff;
+  font-weight: 600;
 }
 .btn.small {
-  min-height: 36px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 0 10px;
   font-size: 0.85rem;
 }
 .btn.danger {
-  color: #c0392b;
+  color: var(--late);
 }
 .field {
   display: flex;
@@ -158,8 +169,9 @@ button:disabled {
   margin-bottom: 16px;
 }
 .field > .label {
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 600;
+  color: var(--muted);
 }
 .field .help {
   font-size: 0.78rem;
@@ -167,28 +179,91 @@ button:disabled {
 }
 .field .error {
   font-size: 0.8rem;
-  color: #c0392b;
+  color: var(--late);
 }
 .input {
-  height: 44px;
+  height: 40px;
   padding: 0 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--surface);
   width: 100%;
 }
+.input:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
 .panel {
-  padding: 14px;
+  padding: 16px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
-  box-shadow: var(--shadow);
 }
 
-/* Gradient text for page titles */
+/* Page titles: plain, heavy, tight. */
 .brand-text {
-  background: var(--brand);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: inherit;
+}
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+.page-title svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Section heading over a list: small blue label with a hairline under it. */
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  margin: 26px 0 2px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+.section-head .count {
+  color: var(--faint);
+  font-weight: 500;
+}
+
+/* Small rounded option buttons (add-bar extras, "# Tag"). */
+.pill-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.pill-btn:hover {
+  color: var(--text);
+}
+.pill-btn.set {
+  border-color: var(--accent-soft);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+/* A transparent native date/select laid over a pill, so tapping opens the real picker. */
+.pill-btn > input,
+.pill-btn > select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
 }

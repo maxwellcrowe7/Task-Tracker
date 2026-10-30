@@ -18,6 +18,7 @@ const sql = (v) => {
 
 // Sample ids like 'floss' become real uuids; user_id becomes the looked-up user.
 const ids = new Map(data.tasks.map((t) => [t.id, randomUUID()]))
+const tagIds = new Map(data.tags.map((t) => [t.id, randomUUID()]))
 const omit = new Set(['id', 'user_id', 'created_at'])
 
 function inserts(table, rows, mapRow) {
@@ -35,6 +36,8 @@ const body = [
   inserts('habit_completions', data.completions, (c) => ({ user_id: 'uid', ...pick(c), task_id: sql(ids.get(c.task_id)), created_at: sql(c.created_at) })),
   inserts('habit_pauses', data.pauses, (p) => ({ user_id: 'uid', ...pick(p), task_id: sql(ids.get(p.task_id)) })),
   inserts('habit_vacations', data.vacations, (v) => ({ user_id: 'uid', ...pick(v) })),
+  inserts('habit_tags', data.tags, (t) => ({ id: sql(tagIds.get(t.id)), user_id: 'uid', ...pick(t), parent_id: t.parent_id ? sql(tagIds.get(t.parent_id)) : 'null' })),
+  inserts('habit_todos', data.todos, (t) => ({ user_id: 'uid', ...pick(t), tag_ids: `array[${t.tag_ids.map((g) => sql(tagIds.get(g))).join(', ')}]::uuid[]`, steps: `${sql(JSON.stringify(t.steps))}::jsonb` })),
 ].join('\n')
 
 const file = `-- Sample data for the Habit Tracker, generated ${today} by scripts/build-seed-sql.js.

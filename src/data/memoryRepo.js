@@ -1,20 +1,24 @@
 // Demo mode: everything lives in memory and resets on reload.
 // Same interface as the Supabase repo: load, insert, insertMany, update, remove.
+// Plain copies in and out, so callers can't mutate the stored rows (and reactive
+// proxies from the UI don't break the copy).
+const copy = (value) => JSON.parse(JSON.stringify(value))
+
 export function createMemoryRepo(data) {
-  const db = structuredClone(data)
+  const db = copy(data)
   let nextId = 1
 
   return {
     mode: 'demo',
 
     async load() {
-      return structuredClone(db)
+      return copy(db)
     },
 
     async insert(table, row) {
       const saved = { id: `${table}-${nextId++}`, user_id: 'demo', created_at: new Date().toISOString(), ...row }
-      db[table].push(saved)
-      return structuredClone(saved)
+      db[table].push(copy(saved))
+      return copy(saved)
     },
 
     async insertMany(table, rows) {
@@ -25,8 +29,8 @@ export function createMemoryRepo(data) {
 
     async update(table, id, patch) {
       const row = db[table].find((r) => r.id === id)
-      Object.assign(row, patch)
-      return structuredClone(row)
+      Object.assign(row, copy(patch))
+      return copy(row)
     },
 
     async remove(table, id) {

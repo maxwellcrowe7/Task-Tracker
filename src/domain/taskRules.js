@@ -4,7 +4,7 @@ import { hasDue } from './due.js'
 // Fields the task form edits. Subtag and sort order aren't in the UI yet.
 export const EDITABLE_FIELDS = [
   'name', 'kind', 'scope', 'period', 'period_anchor', 'target', 'unit_label',
-  'quick_add', 'pinned_day', 'due_day', 'due_week', 'due_month', 'grace_days', 'active',
+  'quick_add', 'pinned_day', 'due_day', 'due_week', 'due_month', 'grace_days', 'lead_days', 'active',
   'active_since', 'pauses_on_vacation', 'season_start', 'season_end', 'notes',
 ]
 
@@ -26,6 +26,7 @@ export const newTaskDefaults = (today) => ({
   due_week: null,
   due_month: null,
   grace_days: 0,
+  lead_days: 1,
   active: true,
   active_since: today,
   pauses_on_vacation: false,
@@ -45,6 +46,7 @@ export function normalizeTask(input) {
   t.target = Number(t.target)
   t.quick_add = Number(t.quick_add)
   t.grace_days = Number(t.grace_days) || 0
+  t.lead_days = t.lead_days === '' || t.lead_days == null ? 1 : Number(t.lead_days)
 
   t.unit_label = String(t.unit_label ?? '').trim() || null
   const plainCount = !t.unit_label && t.quick_add === 1 && Number.isInteger(t.target)
@@ -86,6 +88,7 @@ export function validateTask(t) {
   if (!(t.target > 0)) errors.target = 'Must be more than 0.'
   if (!(t.quick_add > 0)) errors.quick_add = 'Must be more than 0.'
   if (!Number.isInteger(t.grace_days) || t.grace_days < 0 || t.grace_days > 6) errors.grace_days = 'Between 0 and 6 days.'
+  if (!Number.isInteger(t.lead_days) || t.lead_days < 0 || t.lead_days > 31) errors.lead_days = 'Between 0 and 31 days.'
   if (t.period === 'biweek' && !t.period_anchor) errors.period_anchor = 'Pick a starting week.'
   if (t.due_week != null && t.pinned_day == null) errors.due = 'Pick a weekday.'
   if (t.period === 'year' && (t.due_day != null || t.due_week != null) && t.due_month == null) errors.due = 'Pick a month.'

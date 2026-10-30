@@ -20,7 +20,7 @@ export const themeSettings = reactive(load())
 function apply() {
   const theme = resolveTheme(themeSettings, new Date())
   document.documentElement.dataset.theme = theme
-  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#0f1218' : '#f3f5f8')
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#1c1c1e' : '#ffffff')
 }
 
 export function startTheme() {

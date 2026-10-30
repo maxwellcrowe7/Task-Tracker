@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { dueDate, describeDue, nthWeekday, LAST } from '../../src/domain/due.js'
-import { pinStatus, showsOnDay, wasLate } from '../../src/domain/status.js'
+import { pinStatus, todayState, wasLate } from '../../src/domain/status.js'
 import { computeStats } from '../../src/domain/stats.js'
 import { periodFor } from '../../src/domain/periods.js'
 import { normalizeTask, validateTask, newTaskDefaults } from '../../src/domain/taskRules.js'
@@ -47,13 +47,15 @@ describe('due dates', () => {
 describe('monthly due-date tasks on Today', () => {
   const pdga = monthly({ due_week: 2, pinned_day: 2, grace_days: 1 }) // 2nd Tuesday: Nov 10
 
-  it('appear 3 days before and stay until done', () => {
-    expect(showsOnDay(pdga, [], '2026-11-06')).toBe(false)
-    expect(showsOnDay(pdga, [], '2026-11-07')).toBe(true)
-    expect(showsOnDay(pdga, [], '2026-11-25')).toBe(true) // overdue, still showing
+  it('appear "show before" days ahead, stay through grace, then drop off as missed', () => {
+    const t = { ...pdga, lead_days: 3 }
+    expect(todayState(t, [], '2026-11-06')).toBe('hidden')
+    expect(todayState(t, [], '2026-11-07')).toBe('open')
+    expect(todayState(t, [], '2026-11-11')).toBe('open') // grace day
+    expect(todayState(t, [], '2026-11-12')).toBe('hidden') // missed
     const history = done(['2026-11-09'])
-    expect(showsOnDay(pdga, history, '2026-11-09')).toBe(true) // shows Done that day
-    expect(showsOnDay(pdga, history, '2026-11-10')).toBe(false)
+    expect(todayState(t, history, '2026-11-09')).toBe('done') // under Completed that day
+    expect(todayState(t, history, '2026-11-10')).toBe('hidden')
   })
 
   it('status pills', () => {
@@ -76,8 +78,18 @@ describe('monthly due-date tasks on Today', () => {
     expect(computeStats(t, history, [], [], '2026-10-19')).toEqual({ met: 2, total: 2, late: 1 })
   })
 
-  it('weekly tasks still show every day', () => {
-    expect(showsOnDay(makeTask({ period: 'week', pinned_day: 3 }), [], '2026-10-18')).toBe(true)
+  it('weekly due-day tasks use the same window (default: 1 day before)', () => {
+    const vacuum = makeTask({ kind: 'chore', period: 'week', pinned_day: 3, grace_days: 1 })
+    expect(todayState(vacuum, [], '2026-10-19')).toBe('hidden')
+    expect(todayState(vacuum, [], '2026-10-20')).toBe('open')
+    expect(todayState(vacuum, [], '2026-10-22')).toBe('open')
+    expect(todayState(vacuum, [], '2026-10-23')).toBe('hidden')
+  })
+
+  it('habits get no grace after the due day', () => {
+    const h = makeTask({ period: 'week', pinned_day: 3, grace_days: 0 })
+    expect(todayState(h, [], '2026-10-21')).toBe('open')
+    expect(todayState(h, [], '2026-10-22')).toBe('hidden')
   })
 })
 
@@ -87,8 +99,8 @@ describe('a due date before the task started', () => {
 
   it('is not overdue and stays off Today until next month', () => {
     expect(pinStatus(pdga, [], '2026-10-23')).toBeNull()
-    expect(showsOnDay(pdga, [], '2026-10-23')).toBe(false)
-    expect(showsOnDay(pdga, [], '2026-11-07')).toBe(true)
+    expect(todayState(pdga, [], '2026-10-23')).toBe('hidden')
+    expect(todayState(pdga, [], '2026-11-09')).toBe('open')
   })
 
   it("doesn't count against stats or break the streak", () => {
