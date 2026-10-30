@@ -53,7 +53,6 @@ button {
   min-height: 48px;
   padding: 0 18px;
   border: 0;
-  border-left: 1px solid rgb(255 255 255 / 0.14);
   border-radius: 0;
   font-size: 0.95rem;
   background: none;
