@@ -11,6 +11,7 @@ import ContextSwitch from './components/ContextSwitch.vue'
 import Icon from './components/Icon.vue'
 import TagEditPop from './components/TagEditPop.vue'
 import ColorGrid from './components/ColorGrid.vue'
+import Toast from './components/Toast.vue'
 
 // Any failed save (e.g. offline) shows a banner instead of failing silently.
 const onFailure = (event) => {
@@ -243,6 +244,7 @@ const routineCount = computed(() => state.tasks.filter((t) => t.scope === contex
       <router-link to="/manage" class="tab" active-class="on"><Icon name="routines" />Routines</router-link>
       <router-link to="/settings" class="tab" active-class="on"><Icon name="settings" />Settings</router-link>
     </nav>
+    <Toast />
   </div>
 </template>
 

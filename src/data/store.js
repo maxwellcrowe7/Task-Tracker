@@ -155,6 +155,11 @@ export async function deleteTodo(todo) {
   removeFrom(state.todos, todo)
 }
 
+// Put back a just-deleted to-do (for Undo), same id and all.
+export async function restoreTodo(row) {
+  state.todos.push(await repo.insert('todos', row))
+}
+
 // ---- Tags ----
 
 export async function addTag(fields) {

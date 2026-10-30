@@ -1,10 +1,12 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { state, setTodoDone } from '../data/store.js'
+import { state, setTodoDone, deleteTodo, restoreTodo } from '../data/store.js'
 import { dueLabel, stepProgress, showsFrom } from '../domain/todos.js'
 import { formatShortDate } from '../lib/format.js'
 import Icon from './Icon.vue'
 import TagChip from './TagChip.vue'
+import SwipeRow from './SwipeRow.vue'
+import { showToast } from '../lib/toast.js'
 
 // A to-do on a list: the circle checks it off (on `today`), tapping elsewhere selects it.
 const props = defineProps({
@@ -35,27 +37,37 @@ async function toggle() {
     busy.value = false
   }
 }
+
+// Swipe left on a phone to delete, with Undo.
+const swipeActions = [{ key: 'delete', label: 'Delete', icon: 'trash', tone: 'red' }]
+async function onSwipe() {
+  const row = JSON.parse(JSON.stringify(props.todo))
+  await deleteTodo(props.todo)
+  showToast(`Deleted ${row.title}`, () => restoreTodo(row))
+}
 </script>
 
 <template>
-  <div class="row" :class="{ done, selected }" @click="emit('select', todo.id)">
-    <button class="check" :class="{ full: done }" :aria-label="done ? `Reopen ${todo.title}` : `Check off ${todo.title}`" :disabled="busy" @click.stop="toggle">
-      <Icon name="check" class="tick" />
-    </button>
-    <div class="text">
-      <span class="name">{{ todo.title }}</span>
-      <span class="meta">
-        <span v-if="todo.priority === 'high'" class="flag" title="Priority"><Icon name="flag" /></span>
-        <span v-if="due" :class="due.tone">{{ due.text }}</span>
-        <span v-if="waitsUntil" class="waits" title="Hidden from Today until then">Shows {{ waitsUntil }}</span>
-        <span v-if="steps" class="steps" :class="{ all: steps.done === steps.total }" :title="`${steps.done} of ${steps.total} steps done`">
-          <Icon name="steps" />{{ steps.done }}/{{ steps.total }}
+  <SwipeRow :actions="swipeActions" @action="onSwipe">
+    <div class="row" :class="{ done, selected }" @click="emit('select', todo.id)">
+      <button class="check" :class="{ full: done }" :aria-label="done ? `Reopen ${todo.title}` : `Check off ${todo.title}`" :disabled="busy" @click.stop="toggle">
+        <Icon name="check" class="tick" />
+      </button>
+      <div class="text">
+        <span class="name">{{ todo.title }}</span>
+        <span class="meta">
+          <span v-if="todo.priority === 'high'" class="flag" title="Priority"><Icon name="flag" /></span>
+          <span v-if="due" :class="due.tone">{{ due.text }}</span>
+          <span v-if="waitsUntil" class="waits" title="Hidden from Today until then">Shows {{ waitsUntil }}</span>
+          <span v-if="steps" class="steps" :class="{ all: steps.done === steps.total }" :title="`${steps.done} of ${steps.total} steps done`">
+            <Icon name="steps" />{{ steps.done }}/{{ steps.total }}
+          </span>
+          <span v-if="todo.notes" class="has-notes" title="Has notes"><Icon name="notes" /></span>
+          <TagChip v-for="t in tags" :key="t.id" :tag="t" />
         </span>
-        <span v-if="todo.notes" class="has-notes" title="Has notes"><Icon name="notes" /></span>
-        <TagChip v-for="t in tags" :key="t.id" :tag="t" />
-      </span>
+      </div>
     </div>
-  </div>
+  </SwipeRow>
 </template>
 
 <style scoped>

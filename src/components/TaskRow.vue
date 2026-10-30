@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { state, addCompletion, removeLastCompletion, recoverStreak, declineRecovery } from '../data/store.js'
+import { state, addCompletion, removeLastCompletion, recoverStreak, declineRecovery, skipPeriod, undoSkip, deleteTask } from '../data/store.js'
 import { periodFor, periodUnit } from '../domain/periods.js'
 import { dailyTotals, sumRange } from '../domain/totals.js'
 import { computeStreak, recoveryOffer } from '../domain/streak.js'
@@ -8,6 +8,8 @@ import { pinStatus } from '../domain/status.js'
 import { isPausedOn, skipOn } from '../domain/pauses.js'
 import Icon from './Icon.vue'
 import RecoveryDialog from './RecoveryDialog.vue'
+import SwipeRow from './SwipeRow.vue'
+import { showToast } from '../lib/toast.js'
 
 // One line on the Today list. The circle on the left logs it (a ring that fills for
 // multi-step tasks); tapping anywhere else selects it to show details.
@@ -69,37 +71,62 @@ async function toggle() {
     busy.value = false
   }
 }
+// Swipe left on a phone: skip (or unskip) this period, or delete the task.
+const swipeActions = computed(() => [
+  ...(skipped.value
+    ? [{ key: 'unskip', label: 'Unskip', icon: 'undo', tone: 'gray' }]
+    : !paused.value && !met.value
+      ? [{ key: 'skip', label: 'Skip', icon: 'skip', tone: 'gray' }]
+      : []),
+  { key: 'delete', label: 'Delete', icon: 'trash', tone: 'red' },
+])
+async function onSwipe(key) {
+  const task = props.task
+  const date = props.date
+  if (key === 'skip') {
+    await skipPeriod(task, date)
+    const when = task.period === 'day' ? (date === props.today ? 'today' : 'that day') : `this ${{ week: 'week', biweek: '2 weeks', month: 'month', year: 'year' }[task.period]}`
+    showToast(`Skipped ${task.name} ${when}`, () => undoSkip(task, date))
+  } else if (key === 'unskip') {
+    await undoSkip(task, date)
+  } else if (confirm(`Delete "${task.name}"? Its history is deleted too. To keep the history, turn it off in Routines instead.`)) {
+    await deleteTask(task)
+    showToast(`Deleted ${task.name}`)
+  }
+}
 const fillMissed = () => recoverStreak(props.task, offer.value).finally(() => (offer.value = null))
 const startFresh = () => declineRecovery(props.task, offer.value).finally(() => (offer.value = null))
 </script>
 
 <template>
-  <div class="row" :class="{ done: met, selected, dim: paused }" @click="emit('select', task.id)">
-    <button
-      class="check"
-      :class="{ ring: !simple, full: met }"
-      :aria-label="met && loggedOnDay ? `Undo ${task.name}` : `Log ${task.name}`"
-      :disabled="busy"
-      @click.stop="toggle"
-    >
-      <svg v-if="!simple && !met" viewBox="0 0 22 22" aria-hidden="true">
-        <circle class="bg" cx="11" cy="11" r="9.5" />
-        <circle v-if="progress > 0" class="fg" cx="11" cy="11" r="9.5" :stroke-dasharray="ringDash" />
-      </svg>
-      <Icon v-else name="check" class="tick" />
-    </button>
-    <div class="text">
-      <span class="name">{{ task.name }}</span>
-      <span class="meta">
-        <span v-if="skipped">Skipped</span>
-        <span v-else-if="paused">Paused</span>
-        <span v-if="progressText">{{ progressText }}</span>
-        <span v-if="dueText" class="due">{{ dueText }}</span>
-        <span v-if="streak" class="streak"><Icon name="flame" />{{ streak }} {{ periodUnit(task, streak) }}</span>
-      </span>
+  <SwipeRow :actions="swipeActions" @action="onSwipe">
+    <div class="row" :class="{ done: met, selected, dim: paused }" @click="emit('select', task.id)">
+      <button
+        class="check"
+        :class="{ ring: !simple, full: met }"
+        :aria-label="met && loggedOnDay ? `Undo ${task.name}` : `Log ${task.name}`"
+        :disabled="busy"
+        @click.stop="toggle"
+      >
+        <svg v-if="!simple && !met" viewBox="0 0 22 22" aria-hidden="true">
+          <circle class="bg" cx="11" cy="11" r="9.5" />
+          <circle v-if="progress > 0" class="fg" cx="11" cy="11" r="9.5" :stroke-dasharray="ringDash" />
+        </svg>
+        <Icon v-else name="check" class="tick" />
+      </button>
+      <div class="text">
+        <span class="name">{{ task.name }}</span>
+        <span class="meta">
+          <span v-if="skipped">Skipped</span>
+          <span v-else-if="paused">Paused</span>
+          <span v-if="progressText">{{ progressText }}</span>
+          <span v-if="dueText" class="due">{{ dueText }}</span>
+          <span v-if="streak" class="streak"><Icon name="flame" />{{ streak }} {{ periodUnit(task, streak) }}</span>
+        </span>
+      </div>
+      <RecoveryDialog v-if="offer" :task="task" :offer="offer" @fill="fillMissed" @decline="startFresh" />
     </div>
-    <RecoveryDialog v-if="offer" :task="task" :offer="offer" @fill="fillMissed" @decline="startFresh" />
-  </div>
+  </SwipeRow>
 </template>
 
 <style scoped>
