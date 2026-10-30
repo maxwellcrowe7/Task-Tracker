@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { state, addCompletion, removeLastCompletion, recoverStreak, declineRecovery, skipPeriod, undoSkip, deleteTask } from '../data/store.js'
+import { state, addCompletion, removeLastCompletion, recoverStreak, declineRecovery, skipPeriod, undoSkip } from '../data/store.js'
 import { periodFor, periodUnit } from '../domain/periods.js'
 import { dailyTotals, sumRange } from '../domain/totals.js'
 import { computeStreak, recoveryOffer } from '../domain/streak.js'
@@ -71,15 +71,14 @@ async function toggle() {
     busy.value = false
   }
 }
-// Swipe left on a phone: skip (or unskip) this period, or delete the task.
-const swipeActions = computed(() => [
-  ...(skipped.value
+// Swipe left on a phone to skip (or unskip) this period. Deleting lives in Routines.
+const swipeActions = computed(() =>
+  skipped.value
     ? [{ key: 'unskip', label: 'Unskip', icon: 'undo', tone: 'gray' }]
     : !paused.value && !met.value
       ? [{ key: 'skip', label: 'Skip', icon: 'skip', tone: 'gray' }]
-      : []),
-  { key: 'delete', label: 'Delete', icon: 'trash', tone: 'red' },
-])
+      : [],
+)
 async function onSwipe(key) {
   const task = props.task
   const date = props.date
@@ -87,11 +86,8 @@ async function onSwipe(key) {
     await skipPeriod(task, date)
     const when = task.period === 'day' ? (date === props.today ? 'today' : 'that day') : `this ${{ week: 'week', biweek: '2 weeks', month: 'month', year: 'year' }[task.period]}`
     showToast(`Skipped ${task.name} ${when}`, () => undoSkip(task, date))
-  } else if (key === 'unskip') {
+  } else {
     await undoSkip(task, date)
-  } else if (confirm(`Delete "${task.name}"? Its history is deleted too. To keep the history, turn it off in Routines instead.`)) {
-    await deleteTask(task)
-    showToast(`Deleted ${task.name}`)
   }
 }
 const fillMissed = () => recoverStreak(props.task, offer.value).finally(() => (offer.value = null))
