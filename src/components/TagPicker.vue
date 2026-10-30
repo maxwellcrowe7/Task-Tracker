@@ -9,7 +9,10 @@ import ColorGrid from './ColorGrid.vue'
 // "+ Tag" button that opens a small list of this side's tags to toggle, with a box
 // to find one or create a new one (picking its color) by typing its name.
 const model = defineModel({ type: Array, default: () => [] })
-const props = defineProps({ scope: { type: String, required: true } })
+const props = defineProps({
+  scope: { type: String, required: true },
+  label: { type: String, default: 'Tag' }, // the add bar says "More", next to the favorites
+})
 
 const open = ref(false)
 const query = ref('')
@@ -71,7 +74,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onDoc))
 
 <template>
   <span ref="root" class="picker">
-    <button ref="btn" type="button" class="pill-btn" :aria-expanded="open" @click="show"><Icon name="tag" class="i" />Tag</button>
+    <button ref="btn" type="button" class="pill-btn" :aria-expanded="open" @click="show"><Icon name="tag" class="i" />{{ label }}</button>
     <Teleport to="body">
     <div v-if="open" ref="pop" class="pop tag-picker-pop" :style="pos" @keydown.esc.stop="open = false">
       <input

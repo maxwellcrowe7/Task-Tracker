@@ -4,6 +4,7 @@ import { state, addTodo } from '../data/store.js'
 import { quickTags } from '../domain/tags.js'
 import { dueLabel, newStep } from '../domain/todos.js'
 import { todayLocal } from '../domain/dates.js'
+import { formatShortDate } from '../lib/format.js'
 import { context } from '../lib/context.js'
 import Icon from './Icon.vue'
 import TagChip from './TagChip.vue'
@@ -12,16 +13,17 @@ import StepDate from './StepDate.vue'
 import ShowOnToday from './ShowOnToday.vue'
 
 // "Brain dump something…": type and press Enter to add a to-do to the current side.
-// Clicking in also shows optional extras underneath: due date, notes and tags (favorites
-// as one-tap chips), plus a More section for the priority flag, steps, and when it
-// shows on Today. On a computer, press N anywhere to jump in.
+// Clicking in shows two rows of extras underneath: due date, priority flag, notes,
+// steps and when it shows on Today; then tags (favorites as one-tap chips). On a computer,
+// press N anywhere to jump in.
 const props = defineProps({ presetTags: { type: Array, default: () => [] } }) // e.g. the tag you're filtered to
 const emit = defineEmits(['added'])
 const title = ref('')
 const due = ref('')
 const flagged = ref(false)
 const showRule = ref({ lead_days: null, show_from: null })
-const showMore = ref(false)
+const showOpen = ref(false) // the Visibility popup
+const showWrap = ref(null)
 const notes = ref('')
 const tagIds = ref([...props.presetTags])
 const showNotes = ref(false)
@@ -36,8 +38,16 @@ const form = ref(null)
 const input = ref(null)
 const busy = ref(false)
 
-const moreSet = computed(() => flagged.value || steps.value.length > 0 || Boolean(stepDraft.value || showRule.value.show_from || (showRule.value.lead_days != null && due.value)))
-const hasExtras = computed(() => Boolean(due.value || moreSet.value || notes.value || steps.value.length || stepDraft.value || stepDraftDue.value || tagIds.value.length > props.presetTags.length))
+const showSet = computed(() => Boolean(showRule.value.show_from || (showRule.value.lead_days != null && due.value)))
+const showText = computed(() => {
+  const { show_from, lead_days } = showRule.value
+  if (show_from) return `Shows ${formatShortDate(show_from)}`
+  if (lead_days != null && due.value) return `${lead_days} day${lead_days === 1 ? '' : 's'} before`
+  return 'Visibility'
+})
+const hasExtras = computed(() =>
+  Boolean(due.value || flagged.value || showSet.value || notes.value || steps.value.length || stepDraft.value || stepDraftDue.value || tagIds.value.length > props.presetTags.length),
+)
 const expanded = computed(() => focused.value || hasExtras.value || title.value)
 const chips = computed(() => quickTags(state.tags, context.scope))
 const extraTags = computed(() => state.tags.filter((t) => tagIds.value.includes(t.id) && !chips.value.includes(t)))
@@ -53,7 +63,7 @@ function reset() {
   tagIds.value = [...props.presetTags]
   steps.value = []
   stepDraftDue.value = null
-  showNotes.value = showSteps.value = showMore.value = false
+  showNotes.value = showSteps.value = showOpen.value = false
 }
 
 // Enter in the step box adds that step (it doesn't add the to-do); Backspace in an
@@ -119,8 +129,16 @@ function onKey(e) {
     input.value?.focus()
   }
 }
-onMounted(() => document.addEventListener('keydown', onKey))
-onUnmounted(() => document.removeEventListener('keydown', onKey))
+// The Visibility popup closes when you click anywhere else.
+const onDown = (e) => showOpen.value && !showWrap.value?.contains(e.target) && (showOpen.value = false)
+onMounted(() => {
+  document.addEventListener('keydown', onKey)
+  document.addEventListener('mousedown', onDown)
+})
+onUnmounted(() => {
+  document.removeEventListener('keydown', onKey)
+  document.removeEventListener('mousedown', onDown)
+})
 </script>
 
 <template>
@@ -145,40 +163,40 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
         <Icon name="calendar" class="i" />{{ dueText }}
         <input v-model="due" type="date" aria-label="Due date" @click="$event.target.showPicker?.()" />
       </label>
-      <button type="button" class="pill-btn" :class="{ set: showNotes || notes }" @click="showNotes = !showNotes"><Icon name="notes" class="i" />Notes</button>
-      <button type="button" class="pill-btn" :class="{ set: showMore || moreSet }" :aria-expanded="showMore" @click="showMore = !showMore">
-        <span class="dots" aria-hidden="true">⋯</span>More<span v-if="moreSet && !showMore" class="dot" aria-hidden="true"></span>
+      <button type="button" class="pill-btn" :class="{ set: flagged, flagged }" :aria-pressed="flagged" title="Priority" @click="flagged = !flagged">
+        <Icon name="flag" class="i" /><span class="lbl">Priority</span>
       </button>
-      <span class="divider" aria-hidden="true"></span>
+      <button type="button" class="pill-btn" :class="{ set: showNotes || notes }" title="Notes" @click="showNotes = !showNotes">
+        <Icon name="notes" class="i" /><span class="lbl">Notes</span>
+      </button>
+      <button type="button" class="pill-btn" :class="{ set: showSteps || steps.length }" title="Steps" @click="toggleSteps">
+        <Icon name="steps" class="i" /><span :class="{ lbl: !steps.length }">{{ steps.length ? `${steps.length} step${steps.length === 1 ? '' : 's'}` : 'Steps' }}</span>
+      </button>
+      <span ref="showWrap" class="show-wrap" @keydown.esc.stop="showOpen = false">
+        <button type="button" class="pill-btn" :class="{ set: showSet || showOpen }" :aria-expanded="showOpen" title="When it shows on Today" @click="showOpen = !showOpen">
+          <Icon name="eye" class="i" /><span :class="{ lbl: !showSet }">{{ showText }}</span>
+        </button>
+        <div v-if="showOpen" class="show-pop">
+          <ShowOnToday
+            :lead-days="showRule.lead_days"
+            :show-from="showRule.show_from"
+            :due-date="due || null"
+            :today="today"
+            @change="showRule = { ...showRule, ...$event }"
+          />
+        </div>
+      </span>
+    </div>
+    <div v-if="expanded" class="tag-line">
       <button v-for="t in chips" :key="t.id" type="button" class="chip-btn" :aria-pressed="tagIds.includes(t.id)" @click="toggleTag(t.id)">
         <TagChip :tag="t" :on="tagIds.includes(t.id)" />
       </button>
       <button v-for="t in extraTags" :key="t.id" type="button" class="chip-btn" aria-pressed="true" @click="toggleTag(t.id)">
         <TagChip :tag="t" />
       </button>
-      <TagPicker v-model="tagIds" :scope="context.scope" />
+      <TagPicker v-model="tagIds" :scope="context.scope" label="More" />
     </div>
 
-    <div v-if="expanded && showMore" class="more">
-      <div class="more-row">
-        <button type="button" class="pill-btn" :class="{ set: flagged, flagged }" :aria-pressed="flagged" @click="flagged = !flagged">
-          <Icon name="flag" class="i" />Priority
-        </button>
-        <button type="button" class="pill-btn" :class="{ set: showSteps || steps.length }" @click="toggleSteps">
-          <Icon name="steps" class="i" />{{ steps.length ? `${steps.length} step${steps.length === 1 ? '' : 's'}` : 'Steps' }}
-        </button>
-      </div>
-      <div class="show">
-        <span class="show-label">Show on Today</span>
-        <ShowOnToday
-          :lead-days="showRule.lead_days"
-          :show-from="showRule.show_from"
-          :due-date="due || null"
-          :today="today"
-          @change="showRule = { ...showRule, ...$event }"
-        />
-      </div>
-    </div>
     <div v-if="expanded && showSteps" class="steps">
       <div v-for="(s, i) in steps" :key="i" class="step">
         <span class="circle"></span>
@@ -283,12 +301,6 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
   width: 13px;
   height: 13px;
 }
-.divider {
-  width: 1px;
-  height: 18px;
-  margin: 0 2px;
-  background: var(--border);
-}
 .chip-btn {
   padding: 0;
   border: 0;
@@ -305,42 +317,34 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
   resize: vertical;
   outline: none;
 }
-.dots {
-  font-size: 0.95rem;
-  line-height: 1;
-}
-.dot {
-  width: 6px;
-  height: 6px;
-  margin-left: 2px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-.more {
-  margin: 10px 0 0 32px;
-  padding: 10px 0 2px;
-  border-top: 1px solid var(--border);
-}
-.more-row {
+.tag-line {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
+  margin: 8px 0 0 32px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.show-wrap {
+  position: relative;
+}
+.show-pop {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 340px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
 }
 .pill-btn.flagged {
   border-color: color-mix(in srgb, var(--flame) 50%, transparent);
   background: color-mix(in srgb, var(--flame) 12%, transparent);
   color: var(--flame);
-}
-.show {
-  margin-top: 10px;
-  max-width: 420px;
-}
-.show-label {
-  display: block;
-  margin-bottom: 6px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--muted);
 }
 .steps {
   margin: 8px 0 0 32px;
@@ -392,11 +396,22 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
   height: 11px;
 }
 @media (max-width: 600px) {
-  .steps,
-  .more {
+  .steps {
     margin-left: 0;
   }
+  /* Phones: icons only until something is set, so the options fit on one line. */
+  .lbl {
+    display: none;
+  }
+  .show-pop {
+    position: fixed;
+    top: auto;
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
   .extras,
+  .tag-line,
   .notes {
     padding-left: 0;
     margin-left: 0;

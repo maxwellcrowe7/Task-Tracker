@@ -40,7 +40,7 @@ describe('todoState', () => {
 describe('dueLabel', () => {
   it('reads naturally', () => {
     expect(dueLabel(todo({ due_date: '2026-10-02' }), TODAY)).toEqual({ text: 'Overdue · Oct 2', tone: 'late' })
-    expect(dueLabel(todo({ due_date: TODAY }), TODAY)).toEqual({ text: 'Today', tone: 'due' })
+    expect(dueLabel(todo({ due_date: TODAY }), TODAY)).toEqual({ text: 'Today', tone: 'late' })
     expect(dueLabel(todo({ due_date: '2026-10-28' }), TODAY)).toEqual({ text: 'Tomorrow', tone: 'due' })
     expect(dueLabel(todo({ due_date: '2026-10-30' }), TODAY).text).toBe('Fri')
     expect(dueLabel(todo({ due_date: '2026-11-12' }), TODAY).text).toBe('Nov 12')
@@ -57,6 +57,17 @@ describe('sortTodos', () => {
       todo({ id: 'd', due_date: '2026-10-20' }),
     ]
     expect(sortTodos(list).map((t) => t.id)).toEqual(['d', 'b', 'c', 'a'])
+  })
+
+  it('flagged first within the same due date, and among the undated', () => {
+    const list = [
+      todo({ id: 'a', due_date: '2026-10-30', created_at: '2026-10-01' }),
+      todo({ id: 'b', due_date: '2026-10-30', priority: 'high', created_at: '2026-10-02' }),
+      todo({ id: 'c', due_date: '2026-10-29', created_at: '2026-10-03' }),
+      todo({ id: 'd', created_at: '2026-10-04' }),
+      todo({ id: 'e', priority: 'high', created_at: '2026-10-05' }),
+    ]
+    expect(sortTodos(list).map((t) => t.id)).toEqual(['c', 'b', 'a', 'e', 'd'])
   })
 })
 

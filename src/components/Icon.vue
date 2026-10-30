@@ -41,6 +41,12 @@ defineProps({ name: { type: String, required: true } })
   <svg v-else-if="name === 'check'" viewBox="0 0 12 12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
     <path d="M2.5 6.5l2.3 2.2 4.7-5" />
   </svg>
+  <svg v-else-if="name === 'eye'" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="3" />
+  </svg>
+  <svg v-else-if="name === 'pencil'" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15.5 4.5l4 4L8 20H4v-4z" /><path d="M13 7l4 4" />
+  </svg>
   <svg v-else-if="name === 'trash'" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <path d="M4 7h16M10 3.5h4M6 7l1 13h10l1-13M10 11v5M14 11v5" />
   </svg>

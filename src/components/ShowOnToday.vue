@@ -25,7 +25,7 @@ const mode = computed({
 })
 const options = computed(() => [
   { value: 'now', label: 'Now' },
-  ...(props.dueDate ? [{ value: 'before', label: 'Days before due' }] : []),
+  ...(props.dueDate ? [{ value: 'before', label: 'Before due' }] : []),
   { value: 'date', label: 'From a date' },
 ])
 function setLead(value) {
@@ -40,7 +40,7 @@ const note = computed(() => {
 
 <template>
   <div class="show-on-today">
-    <Segmented v-model="mode" :options="options" label="Show on Today" />
+    <Segmented v-model="mode" :options="options" label="Visibility" />
     <span v-if="mode === 'before'" class="row">
       <input class="input days" type="number" min="0" max="365" inputmode="numeric" :value="leadDays" aria-label="Days before it's due" @change="setLead($event.target.value)" />
       {{ leadDays === 1 ? 'day' : 'days' }} before it's due

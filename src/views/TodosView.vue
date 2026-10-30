@@ -6,6 +6,7 @@ import { addDays, todayLocal } from '../domain/dates.js'
 import { sortTodos } from '../domain/todos.js'
 import { withDescendants } from '../domain/tags.js'
 import { context } from '../lib/context.js'
+import { deleteTodoWithUndo, isTyping, isDeleteKey } from '../lib/quickActions.js'
 import QuickAdd from '../components/QuickAdd.vue'
 import TodoRow from '../components/TodoRow.vue'
 import TodoDetail from '../components/TodoDetail.vue'
@@ -45,8 +46,14 @@ const selectedId = ref(null)
 const media = window.matchMedia('(min-width: 1100px)')
 const wide = ref(media.matches)
 const onMedia = (e) => (wide.value = e.matches)
+// With a to-do selected: Esc closes it, Delete removes it (with Undo).
 const onKey = (e) => {
-  if (e.key === 'Escape' && !/^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName)) selectedId.value = null
+  if (isTyping()) return
+  if (e.key === 'Escape') selectedId.value = null
+  else if (detailOpen.value && isDeleteKey(e)) {
+    e.preventDefault()
+    deleteTodoWithUndo(state.todos.find((t) => t.id === selectedId.value))
+  }
 }
 onMounted(() => {
   media.addEventListener('change', onMedia)

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { state, addCompletion, removeLastCompletion, recoverStreak, declineRecovery, skipPeriod, undoSkip } from '../data/store.js'
+import { state, addCompletion, removeLastCompletion, recoverStreak, declineRecovery } from '../data/store.js'
 import { periodFor, periodUnit } from '../domain/periods.js'
 import { dailyTotals, sumRange } from '../domain/totals.js'
 import { computeStreak, recoveryOffer } from '../domain/streak.js'
@@ -9,7 +9,7 @@ import { isPausedOn, skipOn } from '../domain/pauses.js'
 import Icon from './Icon.vue'
 import RecoveryDialog from './RecoveryDialog.vue'
 import SwipeRow from './SwipeRow.vue'
-import { showToast } from '../lib/toast.js'
+import { skipActionFor, toggleSkip } from '../lib/quickActions.js'
 
 // One line on the Today list. The circle on the left logs it (a ring that fills for
 // multi-step tasks); tapping anywhere else selects it to show details.
@@ -71,31 +71,21 @@ async function toggle() {
     busy.value = false
   }
 }
-// Swipe left on a phone to skip (or unskip) this period. Deleting lives in Routines.
-const swipeActions = computed(() =>
-  skipped.value
-    ? [{ key: 'unskip', label: 'Unskip', icon: 'undo', tone: 'gray' }]
-    : !paused.value && !met.value
-      ? [{ key: 'skip', label: 'Skip', icon: 'skip', tone: 'gray' }]
-      : [],
-)
-async function onSwipe(key) {
-  const task = props.task
-  const date = props.date
-  if (key === 'skip') {
-    await skipPeriod(task, date)
-    const when = task.period === 'day' ? (date === props.today ? 'today' : 'that day') : `this ${{ week: 'week', biweek: '2 weeks', month: 'month', year: 'year' }[task.period]}`
-    showToast(`Skipped ${task.name} ${when}`, () => undoSkip(task, date))
-  } else {
-    await undoSkip(task, date)
-  }
-}
+// Skip (or unskip) this period: swipe left on a phone, or the button on hover.
+const quick = computed(() => {
+  const action = skipActionFor(props.task, props.date)
+  if (action === 'skip') return { key: 'skip', label: 'Skip', icon: 'skip', tone: 'gray' }
+  if (action === 'unskip') return { key: 'unskip', label: 'Unskip', icon: 'undo', tone: 'gray' }
+  return null
+})
+const swipeActions = computed(() => (quick.value ? [quick.value] : []))
+const runQuick = () => toggleSkip(props.task, props.date, props.today)
 const fillMissed = () => recoverStreak(props.task, offer.value).finally(() => (offer.value = null))
 const startFresh = () => declineRecovery(props.task, offer.value).finally(() => (offer.value = null))
 </script>
 
 <template>
-  <SwipeRow :actions="swipeActions" @action="onSwipe">
+  <SwipeRow :actions="swipeActions" @action="runQuick">
     <div class="row" :class="{ done: met, selected, dim: paused }" @click="emit('select', task.id)">
       <button
         class="check"
@@ -120,6 +110,9 @@ const startFresh = () => declineRecovery(props.task, offer.value).finally(() => 
           <span v-if="streak" class="streak"><Icon name="flame" />{{ streak }} {{ periodUnit(task, streak) }}</span>
         </span>
       </div>
+      <button v-if="quick" class="quick" :title="`${quick.label} (S)`" :aria-label="`${quick.label} ${task.name}`" @click.stop="runQuick">
+        <Icon :name="quick.icon" />
+      </button>
       <RecoveryDialog v-if="offer" :task="task" :offer="offer" @fill="fillMissed" @decline="startFresh" />
     </div>
   </SwipeRow>
@@ -255,6 +248,46 @@ const startFresh = () => declineRecovery(props.task, offer.value).finally(() => 
 @media (min-width: 900px) {
   .meta {
     margin-left: auto;
+  }
+}
+/* Desktop: a one-click action button appears at the row's right end on hover. */
+.quick {
+  display: none;
+}
+@media (hover: hover) {
+  .row {
+    position: relative;
+  }
+  .quick {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: inherit;
+    color: var(--muted);
+    transform: translateY(-50%);
+    box-shadow: -14px 0 10px -4px var(--hover);
+  }
+  .row.selected .quick {
+    box-shadow: -14px 0 10px -4px var(--selected);
+  }
+  .row:hover .quick {
+    display: grid;
+  }
+  .quick:hover {
+    color: var(--text);
+  }
+  .quick.danger:hover {
+    color: var(--late);
+  }
+  .quick svg {
+    width: 16px;
+    height: 16px;
   }
 }
 </style>

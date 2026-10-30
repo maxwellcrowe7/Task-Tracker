@@ -1,12 +1,12 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { state, setTodoDone, deleteTodo, restoreTodo } from '../data/store.js'
+import { state, setTodoDone } from '../data/store.js'
 import { dueLabel, stepProgress, showsFrom } from '../domain/todos.js'
 import { formatShortDate } from '../lib/format.js'
 import Icon from './Icon.vue'
 import TagChip from './TagChip.vue'
 import SwipeRow from './SwipeRow.vue'
-import { showToast } from '../lib/toast.js'
+import { deleteTodoWithUndo } from '../lib/quickActions.js'
 
 // A to-do on a list: the circle checks it off (on `today`), tapping elsewhere selects it.
 const props = defineProps({
@@ -38,17 +38,13 @@ async function toggle() {
   }
 }
 
-// Swipe left on a phone to delete, with Undo.
+// Delete, with Undo: swipe left on a phone, or the button on hover.
 const swipeActions = [{ key: 'delete', label: 'Delete', icon: 'trash', tone: 'red' }]
-async function onSwipe() {
-  const row = JSON.parse(JSON.stringify(props.todo))
-  await deleteTodo(props.todo)
-  showToast(`Deleted ${row.title}`, () => restoreTodo(row))
-}
+const remove = () => deleteTodoWithUndo(props.todo)
 </script>
 
 <template>
-  <SwipeRow :actions="swipeActions" @action="onSwipe">
+  <SwipeRow :actions="swipeActions" @action="remove">
     <div class="row" :class="{ done, selected }" @click="emit('select', todo.id)">
       <button class="check" :class="{ full: done }" :aria-label="done ? `Reopen ${todo.title}` : `Check off ${todo.title}`" :disabled="busy" @click.stop="toggle">
         <Icon name="check" class="tick" />
@@ -66,6 +62,9 @@ async function onSwipe() {
           <TagChip v-for="t in tags" :key="t.id" :tag="t" />
         </span>
       </div>
+      <button class="quick danger" title="Delete (Delete key)" :aria-label="`Delete ${todo.title}`" @click.stop="remove">
+        <Icon name="trash" />
+      </button>
     </div>
   </SwipeRow>
 </template>
@@ -182,6 +181,46 @@ async function onSwipe() {
 @media (min-width: 900px) {
   .meta {
     margin-left: auto;
+  }
+}
+/* Desktop: a one-click action button appears at the row's right end on hover. */
+.quick {
+  display: none;
+}
+@media (hover: hover) {
+  .row {
+    position: relative;
+  }
+  .quick {
+    position: absolute;
+    top: 50%;
+    right: 4px;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: inherit;
+    color: var(--muted);
+    transform: translateY(-50%);
+    box-shadow: -14px 0 10px -4px var(--hover);
+  }
+  .row.selected .quick {
+    box-shadow: -14px 0 10px -4px var(--selected);
+  }
+  .row:hover .quick {
+    display: grid;
+  }
+  .quick:hover {
+    color: var(--text);
+  }
+  .quick.danger:hover {
+    color: var(--late);
+  }
+  .quick svg {
+    width: 16px;
+    height: 16px;
   }
 }
 </style>

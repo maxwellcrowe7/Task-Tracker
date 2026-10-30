@@ -12,6 +12,7 @@ import Icon from './components/Icon.vue'
 import TagEditPop from './components/TagEditPop.vue'
 import ColorGrid from './components/ColorGrid.vue'
 import Toast from './components/Toast.vue'
+import TagsDialog from './components/TagsDialog.vue'
 
 // Any failed save (e.g. offline) shows a banner instead of failing silently.
 const onFailure = (event) => {
@@ -61,6 +62,7 @@ function tagCount(id) {
 const route = useRoute()
 const router = useRouter()
 const adding = ref(false)
+const editingAll = ref(false) // the "Edit all tags" window
 const newTag = ref({ name: '', color: null, parent_id: '' })
 const newTagInput = ref(null)
 const newParents = computed(() => parentChoices(state.tags, context.scope, null))
@@ -156,7 +158,10 @@ const routineCount = computed(() => state.tasks.filter((t) => t.scope === contex
         @drop.prevent="drop(null)"
       >
         {{ dragging ? 'Drop here to move to the top' : 'Tags' }}
-        <button class="side-add" title="New tag" aria-label="New tag" @click="startAdd"><Icon name="plus" /></button>
+        <span class="side-btns">
+          <button class="side-add" title="Edit all tags" aria-label="Edit all tags" @click="editingAll = true"><Icon name="pencil" /></button>
+          <button class="side-add" title="New tag" aria-label="New tag" @click="startAdd"><Icon name="plus" /></button>
+        </span>
       </div>
       <nav class="nav tags">
         <div
@@ -201,7 +206,7 @@ const routineCount = computed(() => state.tasks.filter((t) => t.scope === contex
           <label class="tag-new-inside">
             Inside
             <select v-model="newTag.parent_id">
-              <option value="">Nothing (top level)</option>
+              <option value=""></option>
               <option v-for="p in newParents" :key="p.tag.id" :value="p.tag.id">{{ '\u00a0\u00a0\u00a0'.repeat(p.depth) + p.tag.name }}</option>
             </select>
           </label>
@@ -245,6 +250,7 @@ const routineCount = computed(() => state.tasks.filter((t) => t.scope === contex
       <router-link to="/settings" class="tab" active-class="on"><Icon name="settings" />Settings</router-link>
     </nav>
     <Toast />
+    <TagsDialog v-if="editingAll" @close="editingAll = false" />
   </div>
 </template>
 
@@ -307,6 +313,10 @@ const routineCount = computed(() => state.tasks.filter((t) => t.scope === contex
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--muted);
+}
+.side-btns {
+  display: flex;
+  gap: 2px;
 }
 .side-add {
   display: grid;

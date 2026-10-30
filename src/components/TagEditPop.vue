@@ -62,21 +62,26 @@ defineExpose({ close })
   <Teleport to="body">
     <div ref="pop" class="tag-pop" :style="pos" @keydown.esc.stop="close">
       <label class="label" :for="`tag-name-${tag.id}`">Name</label>
-      <input :id="`tag-name-${tag.id}`" ref="nameInput" v-model="name" class="input" autocomplete="off" @keydown.enter.prevent="close" />
+      <div class="name-row">
+        <input :id="`tag-name-${tag.id}`" ref="nameInput" v-model="name" class="input" autocomplete="off" @keydown.enter.prevent="close" />
+        <button
+          class="fav"
+          :class="{ on: tag.fav }"
+          :disabled="favFull"
+          :title="favFull ? `You already have ${FAV_CAP} favorites. Unstar one first.` : tag.fav ? 'Favorite (click to unstar)' : 'Star as a favorite: shows as a one-tap chip when adding a to-do'"
+          :aria-label="tag.fav ? 'Unstar' : 'Star as a favorite'"
+          @click="toggleFav"
+        >
+          {{ tag.fav ? '★' : '☆' }}
+        </button>
+      </div>
       <span class="label">Color</span>
       <ColorGrid v-model="color" />
       <label class="label" :for="`tag-parent-${tag.id}`">Inside</label>
       <select :id="`tag-parent-${tag.id}`" class="input" :value="tag.parent_id ?? ''" @change="setParent($event.target.value)">
-        <option value="">Nothing (top level)</option>
+        <option value=""></option>
         <option v-for="p in parents" :key="p.tag.id" :value="p.tag.id">{{ '   '.repeat(p.depth) + p.tag.name }}</option>
       </select>
-      <button class="fav" :class="{ on: tag.fav }" :disabled="favFull" @click="toggleFav">
-        <span class="star">{{ tag.fav ? '★' : '☆' }}</span>
-        <span>
-          Favorite
-          <small>{{ favFull ? `You already have ${FAV_CAP} favorites. Unstar one first.` : 'Shows as a one-tap chip when adding a to-do' }}</small>
-        </span>
-      </button>
       <button class="del" @click="remove">Delete tag</button>
     </div>
   </Teleport>
@@ -111,41 +116,37 @@ defineExpose({ close })
 select.input {
   margin-bottom: 0;
 }
-.fav {
+.name-row {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  width: 100%;
-  margin-top: 10px;
-  padding: 8px;
-  border: 1px solid var(--border);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.name-row .input {
+  flex: 1;
+  margin-bottom: 0;
+}
+.fav {
+  flex: none;
+  width: 34px;
+  padding: 0;
+  border: 0;
   border-radius: 8px;
   background: none;
-  text-align: left;
-  font-weight: 500;
+  color: var(--faint);
+  font-size: 1.25rem;
 }
 .fav:hover:not(:disabled) {
   background: var(--hover);
 }
 .fav:disabled {
-  opacity: 0.6;
+  opacity: 0.4;
 }
-.fav small {
-  display: block;
-  font-weight: 400;
-  font-size: 0.75rem;
-  color: var(--muted);
-}
-.star {
-  font-size: 1.05rem;
-  line-height: 1.2;
-  color: var(--faint);
-}
-.fav.on .star {
+.fav.on {
   color: var(--star);
 }
 .del {
-  margin-top: 6px;
+  display: block;
+  margin-top: 10px;
   padding: 4px 0;
   border: 0;
   background: none;

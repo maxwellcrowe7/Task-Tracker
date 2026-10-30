@@ -2,7 +2,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { state } from '../data/store.js'
-import { todayLists } from '../data/todayList.js'
+import { todayLists, routineOrder } from '../data/todayList.js'
+import { toggleSkip, deleteTodoWithUndo, isTyping, isDeleteKey, isSkipKey } from '../lib/quickActions.js'
 import { addDays, dayOfWeek, todayLocal } from '../domain/dates.js'
 import { formatDate } from '../lib/format.js'
 import { context } from '../lib/context.js'
@@ -62,7 +63,7 @@ const lists = computed(() => todayLists(selectedDate.value, context.scope, today
 const keep = (list) => list.filter((x) => lingering.value.has(x.id))
 const open = computed(() => {
   const { open, done } = lists.value
-  return [...open, ...keep(done)].sort((a, b) => a.sort_order - b.sort_order)
+  return [...open, ...keep(done)].sort(routineOrder(selectedDate.value))
 })
 const openTodos = computed(() => {
   const { openTodos, doneTodos } = lists.value
@@ -106,8 +107,18 @@ const detailOpen = computed(() => {
 function clickOutside(event) {
   if (detailOpen.value && !event.target.closest('.row, .panel-side, dialog')) closeDetail()
 }
+// With a row selected: Esc closes it, S skips a habit or chore, Delete removes a to-do.
 const onKey = (e) => {
-  if (e.key === 'Escape' && detailOpen.value && !/^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName)) closeDetail()
+  if (!detailOpen.value || isTyping()) return
+  const s = selected.value
+  if (e.key === 'Escape') closeDetail()
+  else if (s.kind === 'task' && isSkipKey(e)) {
+    e.preventDefault()
+    toggleSkip(state.tasks.find((t) => t.id === s.id), selectedDate.value, today.value)
+  } else if (s.kind === 'todo' && isDeleteKey(e)) {
+    e.preventDefault()
+    deleteTodoWithUndo(state.todos.find((t) => t.id === s.id))
+  }
 }
 onMounted(() => document.addEventListener('keydown', onKey))
 onUnmounted(() => document.removeEventListener('keydown', onKey))

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { state, updateTodo, deleteTodo, setTodoDone } from '../data/store.js'
+import { state, updateTodo, setTodoDone } from '../data/store.js'
+import { deleteTodoWithUndo } from '../lib/quickActions.js'
 import { dueLabel } from '../domain/todos.js'
 import Icon from './Icon.vue'
 import ShowOnToday from './ShowOnToday.vue'
@@ -45,6 +46,15 @@ const flagged = computed(() => todo.value.priority === 'high')
 const toggleFlag = () => save({ priority: flagged.value ? null : 'high' })
 const due = computed(() => dueLabel(todo.value, props.today))
 
+const tags = computed(() => (todo.value.tag_ids ?? []).map((id) => state.tags.find((t) => t.id === id)).filter(Boolean))
+const tagIds = computed({ get: () => todo.value.tag_ids ?? [], set: (ids) => save({ tag_ids: ids }) })
+const removeTag = (id) => (tagIds.value = tagIds.value.filter((x) => x !== id))
+
+const toggleDone = () => setTodoDone(todo.value, todo.value.done_on ? null : props.today)
+async function remove() {
+  await deleteTodoWithUndo(todo.value)
+  emit('deleted')
+}
 </script>
 
 <template>
@@ -84,7 +94,7 @@ const due = computed(() => dueLabel(todo.value, props.today))
     </label>
 
     <div class="field">
-      <span class="label">Show on Today</span>
+      <span class="label">Visibility</span>
       <ShowOnToday :lead-days="todo.lead_days ?? null" :show-from="todo.show_from ?? null" :due-date="todo.due_date" :today="today" @change="save" />
     </div>
 
