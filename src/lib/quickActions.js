@@ -16,7 +16,11 @@ export function skipActionFor(task, date) {
 export async function toggleSkip(task, date, today) {
   const action = skipActionFor(task, date)
   if (action === 'unskip') return undoSkip(task, date)
-  if (action !== 'skip') return
+  if (action === 'skip') return skipWithUndo(task, date, today)
+}
+
+// Skip the period around `date`, with an Undo toast.
+export async function skipWithUndo(task, date, today) {
   await skipPeriod(task, date)
   const when =
     task.period === 'day'

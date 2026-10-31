@@ -2,15 +2,14 @@
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { state, addTodo } from '../data/store.js'
 import { quickTags } from '../domain/tags.js'
-import { dueLabel, newStep } from '../domain/todos.js'
+import { duePill, newStep } from '../domain/todos.js'
 import { todayLocal } from '../domain/dates.js'
-import { formatShortDate } from '../lib/format.js'
 import { context } from '../lib/context.js'
 import Icon from './Icon.vue'
 import TagChip from './TagChip.vue'
 import TagPicker from './TagPicker.vue'
 import StepDate from './StepDate.vue'
-import ShowOnToday from './ShowOnToday.vue'
+import VisibilityButton from './VisibilityButton.vue'
 
 // "Brain dump something…": type and press Enter to add a to-do to the current side.
 // Clicking in shows two rows of extras underneath: due date, priority flag, notes,
@@ -22,8 +21,6 @@ const title = ref('')
 const due = ref('')
 const flagged = ref(false)
 const showRule = ref({ lead_days: null, show_from: null })
-const showOpen = ref(false) // the Visibility popup
-const showWrap = ref(null)
 const notes = ref('')
 const tagIds = ref([...props.presetTags])
 const showNotes = ref(false)
@@ -39,19 +36,13 @@ const input = ref(null)
 const busy = ref(false)
 
 const showSet = computed(() => Boolean(showRule.value.show_from || (showRule.value.lead_days != null && due.value)))
-const showText = computed(() => {
-  const { show_from, lead_days } = showRule.value
-  if (show_from) return `Shows ${formatShortDate(show_from)}`
-  if (lead_days != null && due.value) return `${lead_days} day${lead_days === 1 ? '' : 's'} before`
-  return 'Visibility'
-})
 const hasExtras = computed(() =>
   Boolean(due.value || flagged.value || showSet.value || notes.value || steps.value.length || stepDraft.value || stepDraftDue.value || tagIds.value.length > props.presetTags.length),
 )
 const expanded = computed(() => focused.value || hasExtras.value || title.value)
 const chips = computed(() => quickTags(state.tags, context.scope))
 const extraTags = computed(() => state.tags.filter((t) => tagIds.value.includes(t.id) && !chips.value.includes(t)))
-const dueText = computed(() => (due.value ? dueLabel({ due_date: due.value }, todayLocal()).text : 'Due'))
+const duePillInfo = computed(() => duePill(due.value || null, todayLocal()))
 
 const toggleTag = (id) =>
   (tagIds.value = tagIds.value.includes(id) ? tagIds.value.filter((x) => x !== id) : [...tagIds.value, id])
@@ -63,7 +54,7 @@ function reset() {
   tagIds.value = [...props.presetTags]
   steps.value = []
   stepDraftDue.value = null
-  showNotes.value = showSteps.value = showOpen.value = false
+  showNotes.value = showSteps.value = false
 }
 
 // Enter in the step box adds that step (it doesn't add the to-do); Backspace in an
@@ -129,15 +120,11 @@ function onKey(e) {
     input.value?.focus()
   }
 }
-// The Visibility popup closes when you click anywhere else.
-const onDown = (e) => showOpen.value && !showWrap.value?.contains(e.target) && (showOpen.value = false)
 onMounted(() => {
   document.addEventListener('keydown', onKey)
-  document.addEventListener('mousedown', onDown)
 })
 onUnmounted(() => {
   document.removeEventListener('keydown', onKey)
-  document.removeEventListener('mousedown', onDown)
 })
 </script>
 
@@ -159,8 +146,8 @@ onUnmounted(() => {
     </div>
 
     <div v-if="expanded" class="extras">
-      <label class="pill-btn" :class="{ set: due }">
-        <Icon name="calendar" class="i" />{{ dueText }}
+      <label class="pill-btn due-pill" :class="{ set: due, late: duePillInfo.late }">
+        <Icon name="calendar" class="i" />{{ duePillInfo.text }}
         <input v-model="due" type="date" aria-label="Due date" @click="$event.target.showPicker?.()" />
       </label>
       <button type="button" class="pill-btn" :class="{ set: flagged, flagged }" :aria-pressed="flagged" title="Priority" @click="flagged = !flagged">
@@ -172,20 +159,14 @@ onUnmounted(() => {
       <button type="button" class="pill-btn" :class="{ set: showSteps || steps.length }" title="Steps" @click="toggleSteps">
         <Icon name="steps" class="i" /><span :class="{ lbl: !steps.length }">{{ steps.length ? `${steps.length} step${steps.length === 1 ? '' : 's'}` : 'Steps' }}</span>
       </button>
-      <span ref="showWrap" class="show-wrap" @keydown.esc.stop="showOpen = false">
-        <button type="button" class="pill-btn" :class="{ set: showSet || showOpen }" :aria-expanded="showOpen" title="When it shows on Today" @click="showOpen = !showOpen">
-          <Icon name="eye" class="i" /><span :class="{ lbl: !showSet }">{{ showText }}</span>
-        </button>
-        <div v-if="showOpen" class="show-pop">
-          <ShowOnToday
-            :lead-days="showRule.lead_days"
-            :show-from="showRule.show_from"
-            :due-date="due || null"
-            :today="today"
-            @change="showRule = { ...showRule, ...$event }"
-          />
-        </div>
-      </span>
+      <VisibilityButton
+        :lead-days="showRule.lead_days"
+        :show-from="showRule.show_from"
+        :due-date="due || null"
+        :today="today"
+        compact
+        @change="showRule = { ...showRule, ...$event }"
+      />
     </div>
     <div v-if="expanded" class="tag-line">
       <button v-for="t in chips" :key="t.id" type="button" class="chip-btn" :aria-pressed="tagIds.includes(t.id)" @click="toggleTag(t.id)">
@@ -291,6 +272,7 @@ onUnmounted(() => {
   font-weight: 600;
 }
 .extras {
+  position: relative; /* anchors the Visibility popup, so it stays put as the pill's text changes */
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -326,20 +308,10 @@ onUnmounted(() => {
   padding-top: 8px;
   border-top: 1px solid var(--border);
 }
-.show-wrap {
-  position: relative;
-}
-.show-pop {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 6px);
-  right: 0;
-  width: 340px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.14);
+.pill-btn.late {
+  border-color: color-mix(in srgb, var(--late) 40%, transparent);
+  background: color-mix(in srgb, var(--late) 12%, transparent);
+  color: var(--late);
 }
 .pill-btn.flagged {
   border-color: color-mix(in srgb, var(--flame) 50%, transparent);
@@ -395,6 +367,28 @@ onUnmounted(() => {
   width: 11px;
   height: 11px;
 }
+/* Due and Visibility keep one width whatever they say, so the row doesn't shift. */
+@media (min-width: 601px) {
+  .due-pill,
+  .extras :deep(.vis > .pill-btn) {
+    justify-content: center;
+    padding: 0 8px;
+    white-space: nowrap;
+  }
+  .due-pill {
+    width: 94px;
+  }
+  .extras :deep(.vis > .pill-btn) {
+    width: 118px;
+  }
+  .extras :deep(.vis > .pill-btn > span) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .extras :deep(.pill-btn svg) {
+    flex: none;
+  }
+}
 @media (max-width: 600px) {
   .steps {
     margin-left: 0;
@@ -402,13 +396,6 @@ onUnmounted(() => {
   /* Phones: icons only until something is set, so the options fit on one line. */
   .lbl {
     display: none;
-  }
-  .show-pop {
-    position: fixed;
-    top: auto;
-    right: 16px;
-    left: 16px;
-    width: auto;
   }
   .extras,
   .tag-line,

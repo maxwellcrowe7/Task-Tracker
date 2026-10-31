@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { todoState, dueLabel, sortTodos, stepProgress, nextStepDue, allStepsDone, showsFrom } from '../../src/domain/todos.js'
+import { todoState, dueLabel, sortTodos, stepProgress, nextStepDue, allStepsDone, showsFrom, duePill } from '../../src/domain/todos.js'
 
 const TODAY = '2026-10-27' // Tuesday
 const todo = (o = {}) => ({ id: 'x', title: 'X', due_date: null, done_on: null, lead_days: null, show_from: null, sort_order: 0, created_at: '2026-10-01T00:00:00Z', ...o })
@@ -103,5 +103,15 @@ describe('step due dates', () => {
     expect(allStepsDone(todo({ steps: [{ done: true }, { done: true }] }))).toBe(true)
     expect(allStepsDone(todo({ steps: [{ done: true }, { done: false }] }))).toBe(false)
     expect(allStepsDone(todo())).toBe(false)
+  })
+})
+
+describe('duePill', () => {
+  it('says Due with no date, the usual label ahead, and just the date (late) when past', () => {
+    expect(duePill(null, '2026-10-30')).toEqual({ text: 'Due', late: false })
+    expect(duePill('2026-10-30', '2026-10-30')).toEqual({ text: 'Today', late: false })
+    expect(duePill('2026-10-31', '2026-10-30')).toEqual({ text: 'Tomorrow', late: false })
+    expect(duePill('2026-10-27', '2026-10-30').late).toBe(true)
+    expect(duePill('2026-10-27', '2026-10-30').text).not.toMatch(/Overdue/)
   })
 })

@@ -2,9 +2,9 @@
 import { ref, computed, watch } from 'vue'
 import { state, updateTodo, setTodoDone } from '../data/store.js'
 import { deleteTodoWithUndo } from '../lib/quickActions.js'
-import { dueLabel } from '../domain/todos.js'
+import { dueLabel, duePill } from '../domain/todos.js'
 import Icon from './Icon.vue'
-import ShowOnToday from './ShowOnToday.vue'
+import VisibilityButton from './VisibilityButton.vue'
 import TagChip from './TagChip.vue'
 import TagPicker from './TagPicker.vue'
 import TodoSteps from './TodoSteps.vue'
@@ -45,6 +45,7 @@ const setDue = (value) => save({ due_date: value || null })
 const flagged = computed(() => todo.value.priority === 'high')
 const toggleFlag = () => save({ priority: flagged.value ? null : 'high' })
 const due = computed(() => dueLabel(todo.value, props.today))
+const pill = computed(() => duePill(todo.value.due_date, props.today))
 
 const tags = computed(() => (todo.value.tag_ids ?? []).map((id) => state.tags.find((t) => t.id === id)).filter(Boolean))
 const tagIds = computed({ get: () => todo.value.tag_ids ?? [], set: (ids) => save({ tag_ids: ids }) })
@@ -85,24 +86,24 @@ async function remove() {
       <TodoSteps :todo="todo" :today="today" />
     </div>
 
-    <label class="field">
-      <span class="label">Due</span>
-      <span class="due-row">
-        <input class="input" type="date" :value="todo.due_date ?? ''" @change="setDue($event.target.value)" />
-        <button v-if="todo.due_date" class="btn small" @click="setDue(null)">Clear</button>
-      </span>
-    </label>
-
-    <div class="field">
-      <span class="label">Visibility</span>
-      <ShowOnToday :lead-days="todo.lead_days ?? null" :show-from="todo.show_from ?? null" :due-date="todo.due_date" :today="today" @change="save" />
-    </div>
-
-    <div class="field">
-      <span class="label">Priority</span>
-      <button class="flag-btn" :class="{ on: flagged }" :aria-pressed="flagged" @click="toggleFlag">
-        <Icon name="flag" />{{ flagged ? 'Priority' : 'Not a priority' }}
+    <div class="extras">
+      <label class="pill-btn" :class="{ set: todo.due_date, late: pill.late && !todo.done_on }" title="Due date">
+        <Icon name="calendar" class="i" />{{ pill.text }}
+        <input type="date" :value="todo.due_date ?? ''" aria-label="Due date" @click="$event.target.showPicker?.()" @change="setDue($event.target.value)" />
+        <button v-if="todo.due_date" type="button" class="clear" aria-label="Clear due date" title="Clear due date" @click.prevent.stop="setDue(null)">
+          <Icon name="close" />
+        </button>
+      </label>
+      <button type="button" class="pill-btn" :class="{ set: flagged, flagged }" :aria-pressed="flagged" title="Priority" @click="toggleFlag">
+        <Icon name="flag" class="i" />Priority
       </button>
+      <VisibilityButton
+        :lead-days="todo.lead_days ?? null"
+        :show-from="todo.show_from ?? null"
+        :due-date="todo.due_date"
+        :today="today"
+        @change="save"
+      />
     </div>
 
     <div class="field">
@@ -212,35 +213,73 @@ async function remove() {
   field-sizing: content;
   outline: none;
 }
-.due-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-.flag-btn {
-  display: inline-flex;
-  align-items: center;
+/* Due, Priority and Visibility as pills, like the add bar; the pills say what they are.
+   The Visibility popup lines up with the row's right edge. */
+.extras {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)); /* equal widths, whatever they say */
   gap: 6px;
-  height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: none;
-  color: var(--muted);
-  font-size: 0.88rem;
-  font-weight: 500;
+  margin-bottom: 16px;
 }
-.flag-btn svg {
-  width: 12px;
-  height: 12px;
+.extras > .pill-btn,
+.extras :deep(.vis > .pill-btn) {
+  justify-content: center;
+  gap: 4px;
+  padding: 0 6px;
+  width: 100%;
+  min-width: 0;
+  white-space: nowrap;
 }
-.flag-btn:hover {
-  background: var(--hover);
+.extras :deep(.vis) {
+  min-width: 0;
 }
-.flag-btn.on {
+/* Keep the icon; if the text doesn't fit, it trails off rather than pushing it out. */
+.extras :deep(.pill-btn svg) {
+  flex: none;
+}
+.extras :deep(.vis > .pill-btn > span) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.i {
+  width: 13px;
+  height: 13px;
+}
+.pill-btn.late {
+  border-color: color-mix(in srgb, var(--late) 40%, transparent);
+  background: color-mix(in srgb, var(--late) 12%, transparent);
+  color: var(--late);
+}
+.pill-btn.flagged {
   border-color: color-mix(in srgb, var(--flame) 50%, transparent);
   background: color-mix(in srgb, var(--flame) 12%, transparent);
   color: var(--flame);
+}
+/* The × sits above the pill's invisible date picker. */
+.pill-btn .clear {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-right: -4px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+}
+.pill-btn .clear:hover {
+  opacity: 1;
+  background: color-mix(in srgb, currentColor 15%, transparent);
+}
+.pill-btn .clear svg {
+  width: 9px;
+  height: 9px;
 }
 .tag-row {
   display: flex;

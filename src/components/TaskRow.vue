@@ -103,8 +103,8 @@ const startFresh = () => declineRecovery(props.task, offer.value).finally(() => 
       <div class="text">
         <span class="name">{{ task.name }}</span>
         <span class="meta">
-          <span v-if="skipped">Skipped</span>
-          <span v-else-if="paused">Paused</span>
+          <span v-if="skipped" class="pill skipped">Skipped</span>
+          <span v-else-if="paused" class="pill skipped">Paused</span>
           <span v-if="progressText">{{ progressText }}</span>
           <span v-if="dueText" class="due">{{ dueText }}</span>
           <span v-if="streak" class="streak"><Icon name="flame" />{{ streak }} {{ periodUnit(task, streak) }}</span>
@@ -289,5 +289,11 @@ const startFresh = () => declineRecovery(props.task, offer.value).finally(() => 
     width: 16px;
     height: 16px;
   }
+}
+/* Skipped / Paused: the same small gray label as in the detail panel. */
+.skipped {
+  padding: 0 6px;
+  font-size: 0.7rem;
+  line-height: 16px;
 }
 </style>

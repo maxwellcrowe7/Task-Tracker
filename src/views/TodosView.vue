@@ -69,6 +69,7 @@ function select(id) {
 }
 const detailOpen = computed(() => Boolean(selectedId.value && state.todos.some((t) => t.id === selectedId.value)))
 function clickOutside(event) {
+  if (!event.target.isConnected) return // a button that removed itself on click
   if (detailOpen.value && !event.target.closest('.row, .panel-side, dialog')) selectedId.value = null
 }
 </script>

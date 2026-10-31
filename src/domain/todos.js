@@ -38,6 +38,14 @@ export function dueLabel(todo, today) {
   return { text: formatShortDate(todo.due_date), tone: '' }
 }
 
+// The text on a Due pill (add bar, detail panel): like dueLabel, but a past date just
+// shows the date (the pill turns red instead of saying "Overdue").
+export function duePill(dueDate, today) {
+  if (!dueDate) return { text: 'Due', late: false }
+  const late = dueDate < today
+  return { text: late ? formatShortDate(dueDate) : dueLabel({ due_date: dueDate }, today).text, late }
+}
+
 // Dated first (soonest first), then undated. Within the same due date (or among the
 // undated), flagged ones come first, then the order they were added.
 export function sortTodos(todos) {

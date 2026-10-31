@@ -73,8 +73,8 @@ const completed = computed(() => lists.value.done.filter((t) => !lingering.value
 const completedTodos = computed(() => lists.value.doneTodos.filter((t) => !lingering.value.has(t.id)))
 const sections = computed(() =>
   [
-    { title: 'Habits', tasks: open.value.filter((t) => t.kind === 'habit') },
-    { title: 'Chores', tasks: open.value.filter((t) => t.kind === 'chore') },
+    { title: 'Habits', kind: 'habit', tasks: open.value.filter((t) => t.kind === 'habit') },
+    { title: 'Chores', kind: 'chore', tasks: open.value.filter((t) => t.kind === 'chore') },
   ].filter((s) => s.tasks.length),
 )
 const doneCount = computed(() => completed.value.length + completedTodos.value.length)
@@ -104,7 +104,10 @@ const detailOpen = computed(() => {
 })
 
 // Clicking anywhere on the page outside a task row (or pressing Esc) closes the details.
+// A button that removed itself on click (like "Custom") is no longer on the page, so
+// ignore those rather than treat them as outside.
 function clickOutside(event) {
+  if (!event.target.isConnected) return
   if (detailOpen.value && !event.target.closest('.row, .panel-side, dialog')) closeDetail()
 }
 // With a row selected: Esc closes it, S skips a habit or chore, Delete removes a to-do.
@@ -158,7 +161,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
       <QuickAdd v-if="isToday" />
 
       <section v-for="s in sections" :key="s.title">
-        <h2 class="section-head">{{ s.title }} <span class="count">{{ s.tasks.length }}</span></h2>
+        <h2 class="section-head" :class="s.kind">{{ s.title }} <span class="count">{{ s.tasks.length }}</span></h2>
         <TransitionGroup name="row" tag="div">
           <TaskRow
             v-for="task in s.tasks"
@@ -174,7 +177,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
       </section>
 
       <section v-if="openTodos.length">
-        <h2 class="section-head">To-dos <span class="count">{{ openTodos.length }}</span></h2>
+        <h2 class="section-head todo">To-dos <span class="count">{{ openTodos.length }}</span></h2>
         <TransitionGroup name="row" tag="div">
           <TodoRow
             v-for="todo in openTodos"

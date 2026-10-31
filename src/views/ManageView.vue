@@ -108,7 +108,7 @@ const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) :
   <VacationPanel v-if="vacationOpen" v-show="!searching || vacationMode" v-model:highlight="vacationMode" />
 
   <section v-for="group in groups" :key="group.kind" class="group">
-    <h2 class="section-head">{{ group.title }} <span class="count">{{ group.tasks.length }}</span></h2>
+    <h2 class="section-head" :class="group.kind">{{ group.title }} <span class="count">{{ group.tasks.length }}</span></h2>
     <ul>
       <li v-for="task in group.tasks" :key="task.id" class="row" :class="[group.kind, { off: !task.active, paused: task.active && isPaused(task), vac: vacationMode && task.pauses_on_vacation }]">
         <router-link :to="`/manage/${task.id}`" class="info">

@@ -229,6 +229,16 @@ a {
   font-weight: 600;
   color: var(--accent);
 }
+/* Each kind of item has its own color: habits blue, chores green, to-dos gray. */
+.section-head.habit {
+  color: var(--habit);
+}
+.section-head.chore {
+  color: var(--chore);
+}
+.section-head.todo {
+  color: var(--muted);
+}
 .section-head .count {
   color: var(--faint);
   font-weight: 500;

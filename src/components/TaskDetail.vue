@@ -1,6 +1,7 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
-import { state, addCompletion, removeLastCompletion, skipPeriod, undoSkip } from '../data/store.js'
+import { ref, computed, watch, nextTick } from 'vue'
+import { state, addCompletion, removeLastCompletion, undoSkip } from '../data/store.js'
+import { skipWithUndo } from '../lib/quickActions.js'
 import { addDays, dayOfWeek, endOfMonth, startOfMonth } from '../domain/dates.js'
 import { periodFor, periodUnit } from '../domain/periods.js'
 import { dailyTotals, sumRange } from '../domain/totals.js'
@@ -53,6 +54,7 @@ const month = ref(startOfMonth(props.today))
 watch(() => props.id, () => {
   month.value = startOfMonth(props.today)
   selected.value = props.today
+  closeCustom()
 })
 const isCurrentMonth = computed(() => month.value === startOfMonth(props.today))
 const monthLabel = computed(() => formatDate(month.value, { month: 'long', year: 'numeric' }))
@@ -62,13 +64,16 @@ const periodMet = (p) => sumRange(totals.value, p.start, p.end) >= target.value
 
 // Rows are Sunday–Saturday weeks; weekly and 2-week periods line up with rows, so a met
 // period fills the whole row. Daily tasks fill single days; monthly/yearly get a header note.
+// Skipped periods are grayed out the same way (whole rows, or single days).
+const wholeRows = computed(() => task.value.period === 'week' || task.value.period === 'biweek')
+const skippedOn = (date) => Boolean(skipOn(task.value, date, state.pauses))
 const rows = computed(() => {
   const last = endOfMonth(month.value)
-  const wholeRows = task.value.period === 'week' || task.value.period === 'biweek'
   const result = []
   for (let start = addDays(month.value, -dayOfWeek(month.value)); start <= last; start = addDays(start, 7)) {
     const days = Array.from({ length: 7 }, (_, i) => addDays(start, i))
-    result.push({ start, days, met: wholeRows && periodMet(periodFor(task.value, start)) })
+    const met = wholeRows.value && periodMet(periodFor(task.value, start))
+    result.push({ start, days, met, skipped: wholeRows.value && !met && skippedOn(start) })
   }
   return result
 })
@@ -85,15 +90,23 @@ const selectedAmount = computed(() => logged.value.get(selected.value) ?? 0)
 const periodTotal = computed(() => sumRange(totals.value, selectedPeriod.value.start, selectedPeriod.value.end))
 const summary = computed(() => {
   if (task.value.period === 'day') return `${fmt(selectedAmount.value)} of ${fmt(target.value)}${unit.value}`
+  // The day is in the heading above, so just the amount: "2 completions", "300 putts".
+  const n = selectedAmount.value
+  const what = unit.value || (n === 1 ? ' completion' : ' completions')
+  return `${fmt(n)}${what}`
+})
+// For weekly-and-longer tasks, the period's progress, shown apart from the day's amount.
+const periodSummary = computed(() => {
+  if (task.value.period === 'day') return ''
   const name = { week: 'week', biweek: '2 weeks', month: 'month', year: 'year' }[task.value.period]
-  return `${fmt(selectedAmount.value)}${unit.value} that day · ${fmt(periodTotal.value)} / ${fmt(target.value)} for the ${name}`
+  return `${fmt(periodTotal.value)} / ${fmt(target.value)} for the ${name}`
 })
 const selectedSkipped = computed(() => Boolean(skipOn(task.value, selected.value, state.pauses)))
 const selectedPaused = computed(() => isPausedOn(task.value, selected.value, state.pauses, state.vacations))
 const note = computed(() => {
   if (selected.value < task.value.active_since) return "Before this task's starting date, so it won't count."
   if (!inSeason(task.value, selected.value)) return "Out of season that day, so it doesn't count."
-  if (selectedSkipped.value) return "Skipped, so this period doesn't count toward the streak or stats."
+  if (selectedSkipped.value) return '' // shown as a "Skipped" label by the heading instead
   if (selectedPaused.value) return "Paused that day, so this period doesn't count toward the streak or stats."
   return ''
 })
@@ -114,20 +127,24 @@ async function run(action) {
 }
 const add = (amount) => run(() => addCompletion(task.value, selected.value, amount))
 const remove = () => run(() => removeLastCompletion(task.value, selected.value))
-function skip() {
-  const ok = confirm(
-    task.value.kind === 'habit'
-      ? `${skipLabel.value} for "${task.value.name}"? Your streak stays as it is, but this won't add to it.`
-      : `${skipLabel.value} for "${task.value.name}"? It won't count against you.`,
-  )
-  if (ok) run(() => skipPeriod(task.value, selected.value))
-}
+const skip = () => run(() => skipWithUndo(task.value, selected.value, props.today))
 const unskip = () => run(() => undoSkip(task.value, selected.value))
 
 const customAmount = ref('')
+const customOpen = ref(false)
+const customInput = ref(null)
+async function openCustom() {
+  customOpen.value = true
+  await nextTick()
+  customInput.value?.focus()
+}
+function closeCustom() {
+  customOpen.value = false
+  customAmount.value = ''
+}
 function addCustom() {
   const amount = Number(customAmount.value)
-  if (amount > 0) add(amount).then(() => (customAmount.value = ''))
+  if (amount > 0) add(amount).then(closeCustom)
 }
 </script>
 
@@ -155,20 +172,42 @@ function addCustom() {
     <section class="log">
       <div class="log-head">
         <div>
-          <h3>{{ selected === today ? 'Today' : formatDate(selected) }}</h3>
-          <p class="sub">{{ summary }}</p>
+          <h3>
+            {{ selected === today ? 'Today' : formatDate(selected) }}
+            <span v-if="selectedSkipped" class="pill skipped">Skipped</span>
+          </h3>
+          <p class="sub">
+            {{ summary }}<span v-if="periodSummary" class="period">{{ periodSummary }}</span>
+          </p>
         </div>
         <div class="steps">
-          <button class="step" aria-label="Remove last" :disabled="!selectedAmount || busy" @click="remove">−</button>
-          <button class="step plus" :aria-label="`Add ${task.quick_add}`" :disabled="busy" @click="add(task.quick_add)">
-            {{ task.unit_type === 'quantity' ? `+${fmt(task.quick_add)}` : '+' }}
-          </button>
+          <template v-if="task.unit_type === 'quantity'">
+            <form v-if="customOpen" class="custom" @submit.prevent="addCustom">
+              <input
+                ref="customInput"
+                v-model="customAmount"
+                class="input"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                step="any"
+                placeholder="Amount"
+                aria-label="Custom amount"
+                @keydown.esc="closeCustom"
+                @blur="!customAmount && closeCustom()"
+              />
+              <button class="step plus" type="submit" :disabled="!(Number(customAmount) > 0) || busy" @mousedown.prevent>Add</button>
+            </form>
+            <button v-else class="link custom-open" @click="openCustom">Custom</button>
+          </template>
+          <template v-if="!customOpen">
+            <button class="step" aria-label="Remove last" :disabled="!selectedAmount || busy" @click="remove">−</button>
+            <button class="step plus" :aria-label="`Add ${task.quick_add}`" :disabled="busy" @click="add(task.quick_add)">
+              {{ task.unit_type === 'quantity' ? `+${fmt(task.quick_add)}` : '+' }}
+            </button>
+          </template>
         </div>
       </div>
-      <form v-if="task.unit_type === 'quantity'" class="custom" @submit.prevent="addCustom">
-        <input v-model="customAmount" class="input" type="number" inputmode="decimal" min="0" step="any" placeholder="Custom amount" />
-        <button class="btn" type="submit" :disabled="!(Number(customAmount) > 0) || busy">Add</button>
-      </form>
       <p v-if="note" class="note">{{ note }}</p>
     </section>
 
@@ -179,7 +218,7 @@ function addCustom() {
         <button class="arrow" aria-label="Next month" :disabled="isCurrentMonth" @click="nextMonth"><Icon name="chevron" /></button>
       </div>
       <div class="weekdays" aria-hidden="true"><span v-for="(d, i) in WEEKDAYS" :key="i">{{ d }}</span></div>
-      <div v-for="row in rows" :key="row.start" class="week" :class="{ met: row.met }">
+      <div v-for="row in rows" :key="row.start" class="week" :class="{ met: row.met, skipped: row.skipped }">
         <button
           v-for="date in row.days"
           :key="date"
@@ -187,6 +226,7 @@ function addCustom() {
           :class="{
             outside: date.slice(0, 7) !== month.slice(0, 7),
             met: dayMet(date),
+            skipped: !wholeRows && !dayMet(date) && skippedOn(date),
             today: date === today,
             selected: date === selected,
             early: date < task.active_since || !inSeason(task, date),
@@ -301,9 +341,23 @@ h2 {
   align-items: center;
   gap: 12px;
 }
+/* Small enough to sit beside the heading without making the row taller. */
+.skipped {
+  margin-left: 6px;
+  padding: 0 6px;
+  font-size: 0.7rem;
+  line-height: 16px;
+  vertical-align: 1px;
+}
 h3 {
   margin: 0;
   font-size: 0.95rem;
+}
+.sub .period {
+  margin-left: 9px;
+  padding-left: 9px;
+  border-left: 1px solid var(--border);
+  color: var(--text);
 }
 .sub,
 .note {
@@ -334,10 +388,37 @@ h3 {
   font-size: 1rem;
   font-weight: 600;
 }
+/* Custom amounts are the exception, so just a quiet link until you need it; while it's
+   open it takes the place of the − / + buttons. */
+.steps {
+  align-items: center;
+}
 .custom {
   display: flex;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 6px;
+}
+.custom .input {
+  width: 80px;
+  height: 36px;
+  -moz-appearance: textfield;
+}
+.custom .input::-webkit-inner-spin-button,
+.custom .input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.custom .step {
+  font-size: 0.85rem;
+}
+.custom-open {
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.custom-open:hover {
+  color: var(--text);
 }
 
 .calendar {
@@ -395,6 +476,11 @@ h3 {
 }
 .week.met {
   background: var(--accent-soft);
+}
+.week.skipped,
+.day.skipped {
+  background: var(--track);
+  color: var(--muted);
 }
 .day {
   position: relative;

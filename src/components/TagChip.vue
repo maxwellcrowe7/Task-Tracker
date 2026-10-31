@@ -3,11 +3,11 @@ import { computed } from 'vue'
 import { paletteColor } from '../domain/tags.js'
 
 // A small colored label for a tag. Light mode uses the palette as-is; dark mode
-// darkens the background and uses the pastel as text. Toggles show a faded version
-// until picked.
+// darkens the background and uses the pastel as text. Toggles show just an
+// outline until picked.
 const props = defineProps({
   tag: { type: Object, required: true },
-  on: { type: Boolean, default: true }, // false = faded (not applied), for toggles
+  on: { type: Boolean, default: true }, // false = outline only (not applied), for toggles
 })
 const color = computed(() => paletteColor(props.tag.color))
 </script>
@@ -33,14 +33,16 @@ const color = computed(() => paletteColor(props.tag.color))
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* Not applied: a faded version of its color; picking it brings the full color. */
+/* Not applied: just an outline in its color; picking it fills it in. */
 .tag-chip.off {
-  background: color-mix(in srgb, var(--tag-bg) 38%, transparent);
-  color: color-mix(in srgb, var(--tag-fg) 55%, var(--muted));
+  border-color: color-mix(in srgb, var(--tag-fg) 45%, transparent);
+  background: transparent;
+  color: var(--tag-fg);
 }
 :root[data-theme='dark'] .tag-chip.off {
-  background: color-mix(in srgb, var(--tag-fg) 22%, #1c1c1e);
-  color: color-mix(in srgb, var(--tag-bg) 55%, var(--muted));
+  border-color: color-mix(in srgb, var(--tag-bg) 45%, transparent);
+  background: transparent;
+  color: color-mix(in srgb, var(--tag-bg) 70%, var(--muted));
 }
 :root[data-theme='dark'] .tag-chip:not(.off) {
   background: color-mix(in srgb, var(--tag-fg) 55%, #1c1c1e);

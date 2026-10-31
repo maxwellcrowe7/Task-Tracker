@@ -52,17 +52,17 @@ const rows = computed(() =>
 // Routines due in the next 7 days plus dated to-dos, soonest first.
 const coming = computed(() => {
   const routines = upcomingItems(state.tasks.filter((t) => t.scope === context.scope), state.completions, props.today, 7)
-    .map((i) => ({ key: `r${i.task.id}${i.date}`, date: i.date, name: i.task.name, id: i.task.id, todo: false }))
+    .map((i) => ({ key: `r${i.task.id}${i.date}`, date: i.date, name: i.task.name, id: i.task.id, todo: false, kind: i.task.kind }))
   const todos = state.todos
     .filter((t) => t.scope === context.scope && !t.done_on && t.due_date > props.today && t.due_date <= addDays(props.today, 7))
-    .map((t) => ({ key: `t${t.id}`, date: t.due_date, name: t.title, id: t.id, todo: true }))
+    .map((t) => ({ key: `t${t.id}`, date: t.due_date, name: t.title, id: t.id, todo: true, kind: 'todo' }))
   // Dated steps inside open to-dos, labeled with their to-do.
   const steps = state.todos
     .filter((t) => t.scope === context.scope && !t.done_on)
     .flatMap((t) =>
       (t.steps ?? [])
         .filter((s) => !s.done && s.due_date > props.today && s.due_date <= addDays(props.today, 7))
-        .map((s) => ({ key: `s${s.id}`, date: s.due_date, name: s.text, parent: t.title, id: t.id, todo: true })),
+        .map((s) => ({ key: `s${s.id}`, date: s.due_date, name: s.text, parent: t.title, id: t.id, todo: true, kind: 'todo' })),
     )
   return [...routines, ...todos, ...steps].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
 })
@@ -83,7 +83,7 @@ const when = (date) => {
         <span></span>
       </div>
       <button v-for="r in rows" :key="r.task.id" class="grid row" @click="emit('select', r.task.id)">
-        <span class="name">{{ r.task.name }}</span>
+        <span class="name"><i class="dot" :class="r.task.kind"></i>{{ r.task.name }}</span>
         <span v-for="(c, i) in r.cells" :key="i" class="cell" :class="c"><i></i></span>
         <span class="tally">{{ r.tally }}</span>
       </button>
@@ -94,7 +94,7 @@ const when = (date) => {
       <h2 class="section-head">Coming up</h2>
       <button v-for="item in coming" :key="item.key" class="soon" @click="emit(item.todo ? 'select-todo' : 'select', item.id)">
         <span class="when">{{ when(item.date) }}</span>
-        <span class="name">{{ item.name }}<small v-if="item.parent" class="parent"> · {{ item.parent }}</small></span>
+        <span class="name"><i class="dot" :class="item.kind"></i>{{ item.name }}<small v-if="item.parent" class="parent"> · {{ item.parent }}</small></span>
       </button>
       <p v-if="!coming.length" class="empty">Nothing due in the next week.</p>
     </section>
@@ -183,6 +183,7 @@ const when = (date) => {
 }
 .soon {
   display: flex;
+  align-items: center;
   gap: 12px;
   width: 100%;
   padding: 7px 8px;
@@ -197,6 +198,28 @@ const when = (date) => {
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--due);
+}
+.soon .name {
+  flex: 1;
+  min-width: 0;
+}
+/* A small dot in the item's color: habits blue, chores green, to-dos gray. */
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin: 0 8px 1px 0;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+.dot.habit {
+  background: var(--habit);
+}
+.dot.chore {
+  background: var(--chore);
+}
+.dot.todo {
+  background: var(--faint);
 }
 .parent {
   color: var(--muted);
