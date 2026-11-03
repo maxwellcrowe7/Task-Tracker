@@ -40,10 +40,13 @@ describe('pinStatus', () => {
 })
 
 describe('grace', () => {
-  it('never extends past the end of the period', () => {
+  it('can run past the end of the period into the next', () => {
     const friday = makeTask({ kind: 'chore', period: 'week', pinned_day: 5, grace_days: 3 })
-    expect(graceEnd(friday, periodFor(friday, '2026-10-19'))).toBe('2026-10-24')
-    expect(pinStatus(friday, [], '2026-10-24').label).toBe('Due (grace until Sat)')
+    expect(graceEnd(friday, periodFor(friday, '2026-10-19'))).toBe('2026-10-26')
+    expect(pinStatus(friday, [], '2026-10-24').label).toBe('Due (grace until Mon)')
+    // Sunday and Monday are in the new week, but still last week's grace.
+    expect(pinStatus(friday, [], '2026-10-25')).toMatchObject({ state: 'grace', label: 'Due (grace until Mon)' })
+    expect(pinStatus(friday, [], '2026-10-27').state).toBe('upcoming')
   })
 
   it('biweek pins fall in the first week', () => {

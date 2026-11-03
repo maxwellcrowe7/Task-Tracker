@@ -1,13 +1,13 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { state, setActive, pauseTask, resumeTask, updateTask } from '../data/store.js'
 import { todayLocal } from '../domain/dates.js'
 import { openPause, currentVacation } from '../domain/pauses.js'
-import { hasSeason } from '../domain/season.js'
+import { hasSeason, inSeason } from '../domain/season.js'
 import { hasDue, describeDue } from '../domain/due.js'
 import { formatShortDate } from '../lib/format.js'
 import { context } from '../lib/context.js'
-import VacationPanel from '../components/VacationPanel.vue'
+import VacationBar from '../components/VacationBar.vue'
 import PlaneIcon from '../components/PlaneIcon.vue'
 
 // Search matches any part of the name, ignoring case and accents.
@@ -44,6 +44,8 @@ function describe(task) {
 }
 
 const isPaused = (task) => Boolean(openPause(task, state.pauses))
+// On, but outside its season today: it's off Today until the season comes back around.
+const outOfSeason = (task) => task.active && hasSeason(task) && !inSeason(task, todayLocal())
 
 async function toggleActive(task, event) {
   if (!task.active && state.completions.some((c) => c.task_id === task.id)) {
@@ -60,11 +62,15 @@ async function toggleActive(task, event) {
 const vacationOpen = ref(false)
 const vacationSet = computed(() => Boolean(currentVacation(state.vacations, todayLocal())))
 
-// When on, the list highlights tasks that pause on vacation and lets you add or remove them in place.
-const vacationMode = ref(false)
-watch(vacationOpen, (open) => {
-  if (!open) vacationMode.value = false
-})
+// While it's open, the list highlights tasks that pause on vacation and lets you add or
+// remove them in place.
+const vacationMode = vacationOpen
+// Wide enough for the vacation bar to fit in the header row.
+const media = window.matchMedia('(min-width: 1000px)')
+const wide = ref(media.matches)
+const onMedia = (e) => (wide.value = e.matches)
+onMounted(() => media.addEventListener('change', onMedia))
+onUnmounted(() => media.removeEventListener('change', onMedia))
 const toggleVacationPause = (task) => updateTask(task, { pauses_on_vacation: !task.pauses_on_vacation })
 
 const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) : pauseTask(task, todayLocal()))
@@ -75,6 +81,8 @@ const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) :
   <header class="head">
     <h1 class="page-title">Routines</h1>
     <div class="head-actions">
+      <!-- Vacation mode: on a computer it sits here, left of the plane, so nothing moves. -->
+      <VacationBar v-if="vacationOpen && wide" class="in-head" @done="vacationOpen = false" />
       <button
         class="plane"
         :class="{ open: vacationOpen, set: vacationSet }"
@@ -90,7 +98,9 @@ const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) :
     </div>
   </header>
 
-  <div class="search">
+  <!-- On a phone there's no room up there, so it takes the search bar's place instead. -->
+  <VacationBar v-if="vacationOpen && !wide" class="bar-slot" @done="vacationOpen = false" />
+  <div v-else class="search">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></svg>
     <input
       v-model="query"
@@ -104,15 +114,14 @@ const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) :
     <button v-if="searching" class="clear" aria-label="Clear search" @click="query = ''">✕</button>
   </div>
 
-  <!-- Opened with the airplane button; hidden while searching unless you're picking vacation tasks. -->
-  <VacationPanel v-if="vacationOpen" v-show="!searching || vacationMode" v-model:highlight="vacationMode" />
 
-  <section v-for="group in groups" :key="group.kind" class="group">
+  <div class="groups">
+  <section v-for="group in groups" :key="group.kind" class="group" :class="group.kind">
     <h2 class="section-head" :class="group.kind">{{ group.title }} <span class="count">{{ group.tasks.length }}</span></h2>
     <ul>
-      <li v-for="task in group.tasks" :key="task.id" class="row" :class="[group.kind, { off: !task.active, paused: task.active && isPaused(task), vac: vacationMode && task.pauses_on_vacation }]">
+      <li v-for="task in group.tasks" :key="task.id" class="row" :class="[group.kind, { off: !task.active, paused: task.active && isPaused(task), season: outOfSeason(task) && !isPaused(task) }]">
         <router-link :to="`/manage/${task.id}`" class="info">
-          <span class="name">{{ task.name }}</span>
+          <span class="name">{{ task.name }}<span v-if="outOfSeason(task)" class="pill skipped">Out of season</span></span>
           <span class="desc">{{ describe(task) }}</span>
         </router-link>
         <button
@@ -148,6 +157,7 @@ const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) :
       <li v-if="!group.tasks.length" class="empty">None yet.</li>
     </ul>
   </section>
+  </div>
   <p v-if="searching && !sorted.length" class="no-match">No tasks match “{{ query.trim() }}”.</p>
   </div>
 </template>
@@ -202,7 +212,8 @@ const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) :
   background: var(--vacation);
   box-shadow: 0 0 0 2px var(--surface);
 }
-.search {
+.search,
+.bar-slot {
   position: sticky;
   top: 8px;
   z-index: 2;
@@ -255,6 +266,36 @@ const togglePause = (task) => (isPaused(task) ? resumeTask(task, todayLocal()) :
 .group {
   margin-top: 6px;
 }
+/* Wide screens: habits and chores side by side, so a long list needs less scrolling. */
+@media (min-width: 900px) {
+  .page {
+    max-width: 1000px;
+  }
+  .groups {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+    column-gap: 20px;
+  }
+  /* Each side is its own card, faintly shaded in its color. */
+  .group {
+    margin-top: 0;
+    padding: 2px 16px 10px;
+    border: 1px solid color-mix(in srgb, var(--kind) 18%, var(--border));
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--kind) 6%, var(--surface));
+    box-shadow: 0 2px 8px rgb(0 0 0 / 0.05);
+  }
+  .group.habit {
+    --kind: var(--habit);
+  }
+  .group.chore {
+    --kind: var(--chore);
+  }
+  .group .section-head {
+    margin-top: 12px;
+  }
+}
 ul {
   margin: 0;
   padding: 0;
@@ -279,6 +320,13 @@ ul {
 .row.paused .info {
   opacity: 0.5;
 }
+/* Out of season: just the name goes gray; the label stays easy to read. */
+.row.season .name {
+  color: var(--muted);
+}
+.row.season .skipped {
+  color: var(--text);
+}
 .info {
   flex: 1;
   min-width: 0;
@@ -291,6 +339,14 @@ ul {
 }
 .name {
   font-weight: 500;
+}
+/* Out of season: the same small gray label as Skipped / Paused on Today. */
+.skipped {
+  margin-left: 8px;
+  padding: 0 6px;
+  font-size: 0.7rem;
+  line-height: 16px;
+  vertical-align: 1px;
 }
 .desc {
   font-size: 0.8rem;
@@ -305,8 +361,8 @@ ul {
 .switch {
   position: relative;
   flex-shrink: 0;
-  width: 46px;
-  height: 28px;
+  width: 38px;
+  height: 22px;
   cursor: pointer;
 }
 .switch input {
@@ -326,10 +382,10 @@ ul {
 .switch .track::after {
   content: '';
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 22px;
-  height: 22px;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
@@ -339,20 +395,22 @@ ul {
   background: var(--switch-on);
 }
 .switch input:checked + .track::after {
-  transform: translateX(18px);
+  transform: translateX(16px);
 }
 
-/* Vacation highlight mode */
-.row.vac {
-  background: var(--vacation-soft);
-  box-shadow: inset 0 0 0 2px var(--vacation);
+/* Rows sit a little apart. */
+.group ul {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
+
 .vac-btn {
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 32px;
+  height: 32px;
   border: 1.5px dashed var(--muted);
   border-radius: 50%;
   background: var(--surface);
@@ -371,16 +429,16 @@ ul {
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
   border: 1px solid var(--border);
   border-radius: 50%;
   background: var(--surface);
   color: var(--text);
 }
 .icon-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 14px;
+  height: 14px;
   fill: currentColor;
 }
 .icon-btn.paused {

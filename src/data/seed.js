@@ -1,5 +1,6 @@
 import { addDays, dayOfWeek, diffDays } from '../domain/dates.js'
 import { wasLate } from '../domain/status.js'
+import { workingPeriod } from '../domain/totals.js'
 
 // Sample tasks plus about 8 weeks of history, built relative to `today` so the
 // demo always looks current. Designed to show:
@@ -45,6 +46,13 @@ export function buildSampleData(today) {
     { ...base, ...chore, id: 'vacuum', name: 'Vacuum', pinned_day: 3, grace_days: 2 },
     { ...base, ...chore, id: 'siop', name: 'Send SIOP recap', pinned_day: 3, grace_days: 1, scope: 'work', pauses_on_vacation: false },
     { ...base, ...chore, id: 'washcar', name: 'Wash car', period: 'month', pauses_on_vacation: false, active_since: addDays(today, -120) },
+    // Due Saturday with a day's grace, which runs into Sunday of the next week.
+    { ...base, ...chore, id: 'laundry', name: 'Laundry', pinned_day: 6, grace_days: 1, pauses_on_vacation: false },
+    // Every 2 weeks, due Thursday of the first week, with 2 days' grace.
+    { ...base, ...chore, id: 'sheets', name: 'Change sheets', period: 'biweek', period_anchor: weeksBack(8), pinned_day: 4, grace_days: 2, pauses_on_vacation: false },
+    // Seasonal: the season ended last Saturday, so it's off this week.
+    { ...base, ...chore, id: 'mow', name: 'Mow lawn', pinned_day: 6, pauses_on_vacation: false,
+      season_start: `2000-${addDays(today, -200).slice(5)}`, season_end: `2000-${addDays(weekStart, -1).slice(5)}` },
     { ...base, ...chore, id: 'mealplan', name: 'Meal plan', active: false, pauses_on_vacation: false },
   ].map((t, i) => ({ ...t, sort_order: i + 1 }))
 
@@ -58,7 +66,7 @@ export function buildSampleData(today) {
       user_id: 'demo',
       date,
       amount,
-      was_late: wasLate(byId[taskId], date),
+      was_late: wasLate(byId[taskId], date, workingPeriod(byId[taskId], completions, date)),
       note: null,
       created_at: `${date}T12:00:00Z`,
     })
@@ -97,7 +105,7 @@ export function buildSampleData(today) {
   // Index 2 is the vacation week.
   const choreWeeks = {
     bathroom: [0, 2, null, 0, 1, 0, null, 0],
-    garbage: [0, 0, 0, 0, 0, null, 0, 0],
+    garbage: [null, 0, 0, 0, 0, null, 0, 0], // last week forgotten: shows under Missed
     vacuum: [1, 0, null, 2, null, 0, 1, 0],
     siop: [0, 1, 0, 0, 0, 1, 0, 0],
   }
@@ -108,6 +116,12 @@ export function buildSampleData(today) {
     const due = addDays(weekStart, pin)
     if (due < today && id !== 'garbage') log(id, due)
   }
+
+  // Laundry: some Saturdays, some the Sunday after (late but counts).
+  ;[1, 2, 3, 4, 5, 6].forEach((n) => log('laundry', addDays(weeksBack(n), n % 2 ? 7 : 6)))
+
+  // Change sheets: done each 2-week block so far (on the due day, or a day late).
+  for (let n = 8; n >= 2; n -= 2) log('sheets', addDays(weeksBack(n), 4 + (n % 4 ? 1 : 0)))
 
   log('washcar', addDays(today, -45))
   log('washcar', addDays(today, -80))

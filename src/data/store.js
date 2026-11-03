@@ -2,8 +2,8 @@ import { reactive } from 'vue'
 import { addDays } from '../domain/dates.js'
 import { wasLate } from '../domain/status.js'
 import { backdatePlan } from '../domain/streak.js'
-import { openPause, skipOn } from '../domain/pauses.js'
-import { periodFor } from '../domain/periods.js'
+import { openPause, skipOn, pauseRangesFor } from '../domain/pauses.js'
+import { workingPeriod } from '../domain/totals.js'
 
 // Shared app state. Views read from here; changes go through the repo first.
 export const state = reactive({
@@ -28,6 +28,9 @@ export async function initStore(newRepo) {
 
 const removeFrom = (list, row) => list.splice(list.indexOf(row), 1)
 
+// The date ranges that pause a task (its pauses, skips, and vacations if it pauses for them).
+export const pauseRanges = (task) => pauseRangesFor(task, state.pauses, state.vacations)
+
 // ---- Completions ----
 
 export async function addCompletion(task, date, amount = task.quick_add) {
@@ -35,7 +38,8 @@ export async function addCompletion(task, date, amount = task.quick_add) {
     task_id: task.id,
     date,
     amount: Number(amount),
-    was_late: wasLate(task, date),
+    // In spill-over grace days it counts toward last period, so it's late for that one.
+    was_late: wasLate(task, date, workingPeriod(task, state.completions, date, pauseRanges(task))),
     note: null,
   })
   state.completions.push(saved)
@@ -75,6 +79,18 @@ export async function backdateStreak(task, count, today) {
     rows.map((r) => ({ task_id: task.id, date: r.date, amount: r.amount, was_late: false, note: 'Backdated streak' })),
   )
   state.completions.push(...saved)
+}
+
+// ---- Missed ----
+
+// "I did it": log what was missing on the day it was due, so it counts as on time.
+export const fillMiss = (task, miss) => recoverStreak(task, miss)
+
+// "I missed it": stop listing this miss. It still counts as missed in stats and streaks.
+// Only recent ones matter (the list looks back two weeks), so old entries are dropped.
+export async function dismissMiss(task, miss) {
+  const kept = (task.dismissed_misses ?? []).filter((d) => d >= addDays(miss.period.start, -400))
+  await updateTask(task, { dismissed_misses: [...kept, miss.period.start] })
 }
 
 // ---- Tasks ----
@@ -121,10 +137,19 @@ export async function resumeTask(task, today) {
 
 // ---- Skips ----
 
-// Skip the whole period containing `date` (today, this week, ...) without penalty.
+// Skip the whole period `date` counts toward (today, this week, ...) without penalty.
+// In spill-over grace days that's the late period, not the new one. Returns the skip.
 export async function skipPeriod(task, date) {
-  const { start, end } = periodFor(task, date)
-  state.pauses.push(await repo.insert('pauses', { task_id: task.id, start_date: start, end_date: end, is_skip: true }))
+  const { start, end } = workingPeriod(task, state.completions, date, pauseRanges(task))
+  const row = await repo.insert('pauses', { task_id: task.id, start_date: start, end_date: end, is_skip: true })
+  state.pauses.push(row)
+  return row
+}
+
+export async function removeSkip(row) {
+  if (!state.pauses.includes(row)) return
+  await repo.remove('pauses', row.id)
+  removeFrom(state.pauses, row)
 }
 
 export async function undoSkip(task, date) {

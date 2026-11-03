@@ -27,6 +27,7 @@ create table public.habit_tasks (
   subtag             text,
   notes              text,
   recovery_declined_on date,  -- missed period the user chose not to fill in (streak recovery)
+  dismissed_misses date[] not null default '{}',  -- missed periods dismissed from the Missed list (period start dates)
   season_start       date,
   season_end         date,
   sort_order         int not null default 0,

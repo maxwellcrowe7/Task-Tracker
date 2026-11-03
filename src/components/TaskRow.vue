@@ -1,8 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { state, addCompletion, removeLastCompletion, recoverStreak, declineRecovery } from '../data/store.js'
+import { state, addCompletion, removeLastCompletion, recoverStreak, declineRecovery, pauseRanges } from '../data/store.js'
 import { periodFor, periodUnit } from '../domain/periods.js'
-import { dailyTotals, sumRange } from '../domain/totals.js'
+import { dailyTotals, sumRange, workingPeriod } from '../domain/totals.js'
 import { computeStreak, recoveryOffer } from '../domain/streak.js'
 import { pinStatus } from '../domain/status.js'
 import { isPausedOn, skipOn } from '../domain/pauses.js'
@@ -18,12 +18,18 @@ const props = defineProps({
   date: { type: String, required: true },
   today: { type: String, required: true },
   selected: { type: Boolean, default: false },
+  readonly: { type: Boolean, default: false }, // a day ahead: look, don't log
 })
 const emit = defineEmits(['select', 'done'])
 
 const target = computed(() => Number(props.task.target))
-const period = computed(() => periodFor(props.task, props.date))
-const progress = computed(() => sumRange(dailyTotals(props.task, state.completions), period.value.start, props.date))
+// Usually the period containing the day; in grace days that spill into the next period,
+// the late one.
+const ranges = computed(() => pauseRanges(props.task))
+const period = computed(() => workingPeriod(props.task, state.completions, props.date, ranges.value))
+const progress = computed(() =>
+  sumRange(dailyTotals(props.task, state.completions, undefined, ranges.value), period.value.start, props.date),
+)
 const met = computed(() => progress.value >= target.value)
 const loggedOnDay = computed(() => state.completions.some((c) => c.task_id === props.task.id && c.date === props.date))
 const simple = computed(() => props.task.unit_type === 'occurrence' && target.value === 1)
@@ -42,10 +48,11 @@ const progressText = computed(() => {
     : `${progress.value} of ${target.value}${when}`
 })
 const streak = computed(() => computeStreak(props.task, state.completions, state.pauses, state.vacations, props.today))
-const status = computed(() => pinStatus(props.task, state.completions, props.date))
+const status = computed(() => pinStatus(props.task, state.completions, props.date, ranges.value))
 const dueText = computed(() => {
   const s = status.value
   if (!s || s.state === 'done') return ''
+  if (s.state === 'due' && props.date !== props.today) return 'Due that day'
   return s.state === 'grace' ? s.label.replace('Due (grace until', 'Grace until').replace(')', '') : s.label
 })
 const skipped = computed(() => Boolean(skipOn(props.task, props.date, state.pauses)))
@@ -73,6 +80,7 @@ async function toggle() {
 }
 // Skip (or unskip) this period: swipe left on a phone, or the button on hover.
 const quick = computed(() => {
+  if (props.readonly) return null
   const action = skipActionFor(props.task, props.date)
   if (action === 'skip') return { key: 'skip', label: 'Skip', icon: 'skip', tone: 'gray' }
   if (action === 'unskip') return { key: 'unskip', label: 'Unskip', icon: 'undo', tone: 'gray' }
@@ -91,7 +99,7 @@ const startFresh = () => declineRecovery(props.task, offer.value).finally(() => 
         class="check"
         :class="{ ring: !simple, full: met }"
         :aria-label="met && loggedOnDay ? `Undo ${task.name}` : `Log ${task.name}`"
-        :disabled="busy"
+        :disabled="busy || readonly"
         @click.stop="toggle"
       >
         <svg v-if="!simple && !met" viewBox="0 0 22 22" aria-hidden="true">

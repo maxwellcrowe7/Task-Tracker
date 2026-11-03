@@ -11,6 +11,8 @@ import { hasDue, LAST } from '../domain/due.js'
 import { periodUnit } from '../domain/periods.js'
 import Segmented from '../components/Segmented.vue'
 import PlaneIcon from '../components/PlaneIcon.vue'
+import Icon from '../components/Icon.vue'
+import CalendarPeek from '../components/CalendarPeek.vue'
 
 const props = defineProps({ id: { type: String, default: null } })
 const router = useRouter()
@@ -18,6 +20,8 @@ const today = todayLocal()
 
 const task = computed(() => (props.id ? state.tasks.find((t) => t.id === props.id) : null))
 const missing = computed(() => props.id && !task.value)
+// "Calendar" opens the routine's history and stats in a window over the form.
+const peekOpen = ref(false)
 
 const start = task.value
   ? Object.fromEntries(EDITABLE_FIELDS.map((f) => [f, task.value[f]]))
@@ -46,7 +50,6 @@ const periodOptions = [
 const showPin = computed(() => pinAllowed(form.period))
 const showDateDue = computed(() => form.period === 'month' || form.period === 'year')
 const showGrace = computed(() => form.kind === 'chore' && hasDue(form))
-const graceLimit = computed(() => ({ week: 'Saturday', biweek: 'the end of the 2 weeks', month: 'the end of the month', year: 'the end of the year' })[form.period])
 
 // Monthly / yearly due rule, edited as a mode plus the details for that mode.
 const dueModes = [
@@ -145,8 +148,14 @@ async function remove() {
   <div class="page">
   <header class="head">
     <router-link to="/manage" class="back">‹ Routines</router-link>
-    <h1 class="page-title">{{ task ? 'Edit' : 'New routine' }}</h1>
+    <div class="title-row">
+      <h1 class="page-title">{{ task ? 'Edit' : 'New routine' }}</h1>
+      <button v-if="task" type="button" class="btn small cal-btn" @click="peekOpen = true">
+        <Icon name="calendar" />Calendar
+      </button>
+    </div>
   </header>
+  <CalendarPeek v-if="peekOpen && task" :id="task.id" @close="peekOpen = false" />
 
   <p v-if="missing" class="panel">That task doesn't exist (demo data resets when you reload).</p>
 
@@ -255,7 +264,7 @@ async function remove() {
       </label>
     </div>
     <p v-if="hasDue(form)" class="help grace-help">
-      Shows on Today {{ form.lead_days || 0 }} {{ Number(form.lead_days) === 1 ? 'day' : 'days' }} before it's due<template v-if="showGrace">, and drops off as missed {{ form.grace_days || 0 }} {{ Number(form.grace_days) === 1 ? 'day' : 'days' }} after (never past {{ graceLimit }}). Done in the grace days counts, marked late</template>.
+      Shows on Today {{ form.lead_days || 0 }} {{ Number(form.lead_days) === 1 ? 'day' : 'days' }} before it's due<template v-if="showGrace">, and drops off as missed {{ form.grace_days || 0 }} {{ Number(form.grace_days) === 1 ? 'day' : 'days' }} after. Done in the grace days counts, marked late, even if they run into the next {{ { week: 'week', biweek: '2 weeks', month: 'month', year: 'year' }[form.period] }}</template>.
     </p>
 
     <label class="field">
@@ -350,6 +359,21 @@ async function remove() {
 }
 .head {
   margin-bottom: 16px;
+}
+.title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.cal-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cal-btn svg {
+  width: 14px;
+  height: 14px;
 }
 .back {
   display: inline-block;

@@ -2,16 +2,16 @@ import { periodFor, previousPeriod, periodUnit } from './periods.js'
 import { pauseRangesFor, overlapsAny } from './pauses.js'
 import { periodInSeason } from './season.js'
 import { hasDue, dueBeforeStart } from './due.js'
-import { dailyTotals, sumRange } from './totals.js'
+import { dailyTotals, sumRange, graceUntil } from './totals.js'
 
 // Raw counts over finished periods since active_since. The in-progress current
 // period and any paused or off-season period are left out of both numbers.
 // `late` counts met periods that were only met thanks to was_late completions
 // (tasks with a due date only). Independent of the streak.
 export function computeStats(task, completions, pauses, vacations, today) {
-  const totals = dailyTotals(task, completions)
-  const onTime = dailyTotals(task, completions, (c) => !c.was_late)
   const ranges = pauseRangesFor(task, pauses, vacations)
+  const totals = dailyTotals(task, completions, undefined, ranges)
+  const onTime = dailyTotals(task, completions, (c) => !c.was_late, ranges)
   const target = Number(task.target)
   const pinned = hasDue(task)
 
@@ -24,6 +24,7 @@ export function computeStats(task, completions, pauses, vacations, today) {
     p = previousPeriod(task, p)
   ) {
     if (overlapsAny(ranges, p.start, p.end) || !periodInSeason(task, p) || dueBeforeStart(task, p)) continue
+    if (pinned && graceUntil(task, p) >= today) continue // its grace days are still running
     total++
     if (sumRange(totals, p.start, p.end) >= target) {
       met++

@@ -3,13 +3,14 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { state, addCompletion, removeLastCompletion, undoSkip } from '../data/store.js'
 import { skipWithUndo } from '../lib/quickActions.js'
 import { addDays, dayOfWeek, endOfMonth, startOfMonth } from '../domain/dates.js'
-import { periodFor, periodUnit } from '../domain/periods.js'
+import { periodFor, previousPeriod, periodUnit } from '../domain/periods.js'
 import { dailyTotals, sumRange } from '../domain/totals.js'
 import { computeStreak } from '../domain/streak.js'
 import { computeStats } from '../domain/stats.js'
-import { isPausedOn, skipOn } from '../domain/pauses.js'
+import { isPausedOn, isPeriodPaused, skipOn, pauseRangesFor } from '../domain/pauses.js'
 import { inSeason, hasSeason } from '../domain/season.js'
-import { describeDue, hasDue } from '../domain/due.js'
+import { describeDue, hasDue, dueDate, dueBeforeStart } from '../domain/due.js'
+import { graceEnd } from '../domain/status.js'
 import { formatDate, formatShortDate } from '../lib/format.js'
 import Icon from './Icon.vue'
 
@@ -19,6 +20,7 @@ const props = defineProps({
   id: { type: String, required: true },
   today: { type: String, required: true },
   closable: { type: Boolean, default: false },
+  editable: { type: Boolean, default: true }, // false when already opened from the edit form
 })
 const emit = defineEmits(['close'])
 
@@ -37,7 +39,7 @@ const kicker = computed(() => {
 })
 
 // Counting totals ignore anything before active_since; `logged` shows every entry.
-const totals = computed(() => dailyTotals(task.value, state.completions))
+const totals = computed(() => dailyTotals(task.value, state.completions, undefined, pauseRangesFor(task.value, state.pauses, state.vacations)))
 const logged = computed(() => {
   const days = new Map()
   for (const c of state.completions) {
@@ -56,11 +58,59 @@ watch(() => props.id, () => {
   selected.value = props.today
   closeCustom()
 })
-const isCurrentMonth = computed(() => month.value === startOfMonth(props.today))
+// Routines due on a set day can look ahead a year to see what's coming; others stop at this month.
+const lastMonth = computed(() => (hasDue(task.value) ? startOfMonth(addDays(props.today, 365)) : startOfMonth(props.today)))
 const monthLabel = computed(() => formatDate(month.value, { month: 'long', year: 'numeric' }))
 const prevMonth = () => (month.value = startOfMonth(addDays(month.value, -1)))
 const nextMonth = () => (month.value = addDays(endOfMonth(month.value), 1))
 const periodMet = (p) => sumRange(totals.value, p.start, p.end) >= target.value
+
+// Due days get a ring and grace days a pill, so you can see when each one is due, past or
+// future, done or not. The ring's color says where it stands: gray coming up (or paused),
+// amber due now or in grace, red missed, the task's color once done.
+function dueMark(date) {
+  const t = task.value
+  if (!hasDue(t) || date < t.active_since || !inSeason(t, date)) return null
+  // The day's own period, or the one before when its grace runs into this one.
+  const own = periodFor(t, date)
+  const p = [own, previousPeriod(t, own)].find((q) => {
+    if (dueBeforeStart(t, q)) return false
+    const due = dueDate(t, q)
+    return date >= due && date <= (t.kind === 'chore' ? graceEnd(t, q) : due)
+  })
+  if (!p) return null
+  const due = dueDate(t, p)
+  const until = t.kind === 'chore' ? graceEnd(t, p) : due
+  const met = periodMet(p)
+  const standing = met
+    ? 'done' // not 'met': that class already styles a finished day
+    : isPeriodPaused(t, p, state.pauses, state.vacations)
+      ? 'off'
+      : props.today < due
+        ? 'upcoming'
+        : props.today <= until
+          ? 'now'
+          : 'late'
+  return `${date === due ? 'due' : 'grace'} ${standing}`
+}
+// A pill behind each run of grace days in a row, starting at the due day, like the
+// This week panel: { from, to, state } as column indexes (to is exclusive). It's drawn
+// one piece per day, so its ends can line up exactly with the ring on the due day.
+// When grace runs past Saturday, the pill is squared off at the row's edge and picks
+// up again, squared off, at the start of the next row (`wrapsOut` / `wrapsIn`).
+function graceBands(days) {
+  const bands = []
+  days.forEach((date, i) => {
+    const mark = dueMark(date)
+    if (!mark) return
+    const [kind, standing] = mark.split(' ')
+    const last = bands.at(-1)
+    if (kind === 'grace' && last && last.to === i) last.to = i + 1
+    else bands.push({ from: i, to: i + 1, state: standing, wrapsIn: kind === 'grace' && i === 0 })
+  })
+  for (const b of bands) b.wrapsOut = b.to === 7 && dueMark(addDays(days[6], 1))?.startsWith('grace')
+  return bands.filter((b) => b.to - b.from > 1 || b.wrapsIn || b.wrapsOut)
+}
 
 // Rows are Sunday–Saturday weeks; weekly and 2-week periods line up with rows, so a met
 // period fills the whole row. Daily tasks fill single days; monthly/yearly get a header note.
@@ -155,7 +205,7 @@ function addCustom() {
     <header class="top">
       <span class="kicker">{{ kicker }}</span>
       <div class="actions">
-        <router-link :to="`/manage/${task.id}`" class="btn small">Edit</router-link>
+        <router-link v-if="editable" :to="`/manage/${task.id}`" class="btn small">Edit</router-link>
         <button v-if="closable" class="close" aria-label="Close" @click="emit('close')"><Icon name="close" /></button>
       </div>
     </header>
@@ -215,30 +265,45 @@ function addCustom() {
       <div class="month-nav">
         <button class="arrow" aria-label="Previous month" @click="prevMonth"><Icon name="chevron" class="flip" /></button>
         <span class="month">{{ monthLabel }}<span v-if="monthMet" class="pill habit">Target met</span></span>
-        <button class="arrow" aria-label="Next month" :disabled="isCurrentMonth" @click="nextMonth"><Icon name="chevron" /></button>
+        <button class="arrow" aria-label="Next month" :disabled="month >= lastMonth" @click="nextMonth"><Icon name="chevron" /></button>
       </div>
       <div class="weekdays" aria-hidden="true"><span v-for="(d, i) in WEEKDAYS" :key="i">{{ d }}</span></div>
       <div v-for="row in rows" :key="row.start" class="week" :class="{ met: row.met, skipped: row.skipped }">
+        <template v-for="b in graceBands(row.days)" :key="b.from">
+          <i
+            v-for="c in b.to - b.from"
+            :key="c"
+            class="band"
+            :class="[b.state, { start: c === 1 && !b.wrapsIn, end: c === b.to - b.from && !b.wrapsOut, edge: c === b.to - b.from && b.wrapsOut }]"
+            :style="{ gridColumn: b.from + c }"
+          ></i>
+        </template>
         <button
-          v-for="date in row.days"
+          v-for="(date, i) in row.days"
           :key="date"
           class="day"
-          :class="{
+          :class="[dueMark(date), {
             outside: date.slice(0, 7) !== month.slice(0, 7),
             met: dayMet(date),
             skipped: !wholeRows && !dayMet(date) && skippedOn(date),
             today: date === today,
             selected: date === selected,
+            logged: hasDue(task) && logged.has(date),
             early: date < task.active_since || !inSeason(task, date),
-          }"
+          }]"
           :disabled="date > today"
           :aria-label="formatDate(date)"
           :aria-pressed="date === selected"
+          :style="{ gridColumn: i + 1 }"
           @click="selected = date"
         >
-          {{ Number(date.slice(8)) }}<i :class="{ on: logged.has(date) }"></i>
+          {{ Number(date.slice(8)) }}<i v-if="!hasDue(task)" :class="{ on: logged.has(date) }"></i>
         </button>
       </div>
+      <p v-if="hasDue(task)" class="legend">
+        <span><i class="ring"></i>Due</span>
+        <span v-if="task.kind === 'chore' && task.grace_days"><i class="tint"></i>Grace</span>
+      </p>
     </section>
 
     <footer class="foot">
@@ -486,6 +551,9 @@ h3 {
   position: relative;
   display: grid;
   place-items: center;
+  justify-self: center; /* centered under its weekday letter when the column is wider */
+  width: 100%;
+  max-width: 44px;
   aspect-ratio: 1;
   max-height: 44px;
   border: 1.5px solid transparent;
@@ -503,10 +571,15 @@ h3 {
 .day.early {
   color: var(--faint);
 }
+/* Today: a bold blue number (white if it's filled in). A box marks another picked day. */
 .day.today {
-  font-weight: 700;
+  color: var(--accent);
+  font-weight: 800;
 }
-.day.selected {
+.day.today.logged {
+  color: #fff;
+}
+.day.selected:not(.today) {
   border-color: var(--accent);
 }
 .day i {
@@ -518,6 +591,113 @@ h3 {
 }
 .day i.on {
   background: var(--accent);
+}
+/* Future days can't be picked, but stay readable so due days ahead show clearly. */
+.day:disabled {
+  opacity: 1;
+  color: var(--faint);
+}
+/* Routines with a due day: a logged day gets a filled circle (instead of a dot), the
+   same size as the ring, so a done due day reads as one solid circle. */
+.day.logged {
+  isolation: isolate;
+  color: #fff;
+  font-weight: 600;
+}
+.day.logged::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  width: 29px;
+  height: 29px;
+  margin: auto;
+  border-radius: 50%;
+  background: var(--accent);
+}
+/* The due day: a ring around the number. */
+.day.due::after {
+  content: '';
+  position: absolute;
+  /* Centered by the browser (inset 0 + auto margins), so it lands exactly mid-day. */
+  inset: 0;
+  box-sizing: border-box;
+  width: 29px;
+  height: 29px;
+  margin: auto;
+  border: 1.5px solid var(--muted);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.day.due.off::after {
+  border-color: var(--faint);
+}
+.day.due.done::after {
+  border-color: var(--accent);
+}
+.day.due.now::after {
+  border-color: var(--due);
+}
+.day.due.late::after {
+  border-color: var(--late);
+}
+/* Grace days: a pill from the due day through the last grace day, exactly as tall as
+   the ring (29px) and with its ends on the ring's edge. One piece per day: the first
+   starts at the ring, the middle ones bridge the gaps, the last ends a ring's width in. */
+.week > * {
+  grid-row: 1;
+}
+.band {
+  align-self: center;
+  height: 29px;
+  margin-right: -3px; /* across the gap to the next day */
+  background: color-mix(in srgb, var(--track) 55%, transparent);
+}
+.band.start {
+  margin-left: calc(50% - 14.5px);
+  border-radius: 14.5px 0 0 14.5px;
+}
+.band.end {
+  margin-right: calc(50% - 14.5px);
+  border-radius: 0 14.5px 14.5px 0;
+}
+/* Wrapping to the next row: square at the row's right edge (no gap to cross). */
+.band.edge {
+  margin-right: 0;
+}
+.band.done {
+  background: color-mix(in srgb, var(--accent) 16%, transparent); /* shows on a met week's blue */
+}
+.band.now {
+  background: color-mix(in srgb, var(--due) 18%, transparent);
+}
+.band.late {
+  background: color-mix(in srgb, var(--late) 12%, transparent);
+}
+.legend {
+  display: flex;
+  gap: 14px;
+  margin: 8px 2px 0;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.legend i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+.legend .ring {
+  border: 1.5px solid var(--muted);
+}
+.legend .tint {
+  width: 20px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--track) 55%, transparent);
 }
 .foot {
   display: flex;

@@ -13,6 +13,7 @@ const props = defineProps({
   todo: { type: Object, required: true },
   today: { type: String, required: true },
   selected: { type: Boolean, default: false },
+  readonly: { type: Boolean, default: false }, // a day ahead: look, don't change
 })
 const emit = defineEmits(['select', 'done'])
 
@@ -44,9 +45,9 @@ const remove = () => deleteTodoWithUndo(props.todo)
 </script>
 
 <template>
-  <SwipeRow :actions="swipeActions" @action="remove">
+  <SwipeRow :actions="readonly ? [] : swipeActions" @action="remove">
     <div class="row" :class="{ done, selected }" @click="emit('select', todo.id)">
-      <button class="check" :class="{ full: done }" :aria-label="done ? `Reopen ${todo.title}` : `Check off ${todo.title}`" :disabled="busy" @click.stop="toggle">
+      <button class="check" :class="{ full: done }" :aria-label="done ? `Reopen ${todo.title}` : `Check off ${todo.title}`" :disabled="busy || readonly" @click.stop="toggle">
         <Icon name="check" class="tick" />
       </button>
       <div class="text">
@@ -62,7 +63,7 @@ const remove = () => deleteTodoWithUndo(props.todo)
           <TagChip v-for="t in tags" :key="t.id" :tag="t" />
         </span>
       </div>
-      <button class="quick danger" title="Delete (Delete key)" :aria-label="`Delete ${todo.title}`" @click.stop="remove">
+      <button v-if="!readonly" class="quick danger" title="Delete (Delete key)" :aria-label="`Delete ${todo.title}`" @click.stop="remove">
         <Icon name="trash" />
       </button>
     </div>

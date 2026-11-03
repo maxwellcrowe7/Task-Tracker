@@ -1,4 +1,4 @@
-import { state } from './store.js'
+import { state, pauseRanges } from './store.js'
 import { inSeason } from '../domain/season.js'
 import { todayState } from '../domain/status.js'
 import { todoState, sortTodos } from '../domain/todos.js'
@@ -17,12 +17,14 @@ export function todayLists(date, scope, today = date) {
     .filter((t) => t.active && t.scope === scope && t.active_since <= date && inSeason(t, date))
     .sort(routineOrder(date))
   for (const task of tasks) {
-    const where = todayState(task, state.completions, date)
+    const where = todayState(task, state.completions, date, pauseRanges(task))
     if (where === 'open') open.push(task)
     else if (where === 'done') done.push(task)
   }
 
   const todos = sortTodos(state.todos.filter((t) => t.scope === scope))
+  // A day ahead just previews the to-dos due on it.
+  if (date > today) return { open, done, openTodos: todos.filter((t) => !t.done_on && t.due_date === date), doneTodos: [] }
   const openTodos = todos.filter((t) => todoState(t, date, today) === 'open')
   const doneTodos = todos.filter((t) => todoState(t, date, today) === 'done')
   return { open, done, openTodos, doneTodos }

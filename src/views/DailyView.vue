@@ -13,6 +13,7 @@ import OverviewPanel from '../components/OverviewPanel.vue'
 import TodoRow from '../components/TodoRow.vue'
 import TodoDetail from '../components/TodoDetail.vue'
 import QuickAdd from '../components/QuickAdd.vue'
+import MissedList from '../components/MissedList.vue'
 import Icon from '../components/Icon.vue'
 
 const router = useRouter()
@@ -31,21 +32,21 @@ onMounted(() => document.addEventListener('visibilitychange', refreshToday))
 onUnmounted(() => document.removeEventListener('visibilitychange', refreshToday))
 
 const isToday = computed(() => selectedDate.value === today.value)
+// Days ahead can be looked at but not logged.
+const ahead = computed(() => selectedDate.value > today.value)
 const title = computed(() => {
   if (isToday.value) return 'Today'
   if (selectedDate.value === addDays(today.value, -1)) return 'Yesterday'
+  if (selectedDate.value === addDays(today.value, 1)) return 'Tomorrow'
   return formatDate(selectedDate.value, { weekday: 'long' })
 })
 const subtitle = computed(() => formatDate(selectedDate.value, { weekday: 'long', month: 'long', day: 'numeric' }))
 
-// Week strip: Sunday–Saturday around the selected day. Future days wait for Upcoming.
+// Week strip: Sunday–Saturday around the selected day.
 const weekStart = computed(() => addDays(selectedDate.value, -dayOfWeek(selectedDate.value)))
 const week = computed(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart.value, i)))
 const LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-const shiftWeek = (days) => {
-  const next = addDays(selectedDate.value, days)
-  selectedDate.value = next > today.value ? today.value : next
-}
+const shiftWeek = (days) => (selectedDate.value = addDays(selectedDate.value, days))
 
 // Something just checked off stays in place for a beat (so you see it tick), then
 // slides down into Completed.
@@ -108,13 +109,14 @@ const detailOpen = computed(() => {
 // ignore those rather than treat them as outside.
 function clickOutside(event) {
   if (!event.target.isConnected) return
-  if (detailOpen.value && !event.target.closest('.row, .panel-side, dialog')) closeDetail()
+  if (detailOpen.value && !event.target.closest('.row, .miss, .panel-side, dialog')) closeDetail()
 }
 // With a row selected: Esc closes it, S skips a habit or chore, Delete removes a to-do.
 const onKey = (e) => {
   if (!detailOpen.value || isTyping()) return
   const s = selected.value
   if (e.key === 'Escape') closeDetail()
+  else if (ahead.value) return
   else if (s.kind === 'task' && isSkipKey(e)) {
     e.preventDefault()
     toggleSkip(state.tasks.find((t) => t.id === s.id), selectedDate.value, today.value)
@@ -135,7 +137,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
           <h1 class="page-title"><Icon v-if="isToday" name="star" />{{ title }}</h1>
           <p class="subtitle">
             {{ subtitle }}
-            <button v-if="!isToday" class="link" @click="selectedDate = today">Back to today</button>
+            <button v-if="!isToday" class="link back inline" @click="selectedDate = today">Back to today</button>
           </p>
         </div>
         <div class="week">
@@ -145,20 +147,22 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
             :key="date"
             class="day"
             :class="{ on: date === selectedDate, now: date === today }"
-            :disabled="date > today"
             :aria-label="formatDate(date)"
             :aria-pressed="date === selectedDate"
             @click="selectedDate = date"
           >
             {{ LETTERS[i] }}<b>{{ Number(date.slice(8)) }}</b>
           </button>
-          <button class="nudge" aria-label="Next week" :disabled="weekStart >= addDays(today, -dayOfWeek(today))" @click="shiftWeek(7)">
+          <button class="nudge" aria-label="Next week" @click="shiftWeek(7)">
             <Icon name="chevron" />
           </button>
         </div>
+        <button v-if="!isToday" class="link back below" @click="selectedDate = today">Back to today</button>
       </header>
 
       <QuickAdd v-if="isToday" />
+
+      <MissedList v-if="isToday" :today="today" @select="select" />
 
       <section v-for="s in sections" :key="s.title">
         <h2 class="section-head" :class="s.kind">{{ s.title }} <span class="count">{{ s.tasks.length }}</span></h2>
@@ -170,6 +174,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
             :date="selectedDate"
             :today="today"
             :selected="selectedId === task.id"
+            :readonly="ahead"
             @select="select"
             @done="onDone"
           />
@@ -185,6 +190,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
             :todo="todo"
             :today="today"
             :selected="selectedId === todo.id"
+            :readonly="ahead"
             @select="selectTodo"
             @done="onDone"
           />
@@ -246,6 +252,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
 .subtitle {
   margin: 3px 0 0;
   color: var(--muted);
+  white-space: nowrap;
+}
+/* "Back to today": beside the date on phones (there's room), on its own line under the
+   header on computers. */
+.back.below {
+  display: none;
 }
 .page-title + .subtitle {
   margin-left: 0;
@@ -379,7 +391,23 @@ onUnmounted(() => document.removeEventListener('keydown', onKey))
     justify-content: space-between;
     align-items: flex-end;
   }
+  /* Computers: the header wraps so "Back to today" drops onto a line of its own below
+     the title and week strip, which stay put; only what's below moves down. */
+  .head {
+    flex-wrap: wrap;
+    row-gap: 4px;
+  }
+  .back.inline {
+    display: none;
+  }
+  .back.below {
+    display: block;
+    flex-basis: 100%;
+    margin: 0;
+    text-align: left;
+  }
   .week {
+    flex: none; /* same size every day, however long the date beside it */
     width: 330px;
   }
 }

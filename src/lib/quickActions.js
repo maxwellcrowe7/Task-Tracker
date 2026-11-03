@@ -1,4 +1,4 @@
-import { state, skipPeriod, undoSkip, deleteTodo, restoreTodo } from '../data/store.js'
+import { state, skipPeriod, undoSkip, removeSkip, deleteTodo, restoreTodo, pauseRanges } from '../data/store.js'
 import { skipOn, isPausedOn } from '../domain/pauses.js'
 import { todayState } from '../domain/status.js'
 import { showToast } from './toast.js'
@@ -10,7 +10,7 @@ import { showToast } from './toast.js'
 export function skipActionFor(task, date) {
   if (skipOn(task, date, state.pauses)) return 'unskip'
   if (isPausedOn(task, date, state.pauses, state.vacations)) return null
-  return todayState(task, state.completions, date) === 'open' ? 'skip' : null
+  return todayState(task, state.completions, date, pauseRanges(task)) === 'open' ? 'skip' : null
 }
 
 export async function toggleSkip(task, date, today) {
@@ -21,12 +21,13 @@ export async function toggleSkip(task, date, today) {
 
 // Skip the period around `date`, with an Undo toast.
 export async function skipWithUndo(task, date, today) {
-  await skipPeriod(task, date)
+  const row = await skipPeriod(task, date)
+  const unit = { week: 'week', biweek: '2 weeks', month: 'month', year: 'year' }[task.period]
   const when =
     task.period === 'day'
       ? date === today ? 'today' : 'that day'
-      : `this ${{ week: 'week', biweek: '2 weeks', month: 'month', year: 'year' }[task.period]}`
-  showToast(`Skipped ${task.name} ${when}`, () => undoSkip(task, date))
+      : `${row.end_date < date ? 'last' : 'this'} ${unit}` // grace days can skip last period
+  showToast(`Skipped ${task.name} ${when}`, () => removeSkip(row))
 }
 
 export async function deleteTodoWithUndo(todo) {

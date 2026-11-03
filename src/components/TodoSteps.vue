@@ -86,25 +86,27 @@ function onBlur(i) {
   persist()
 }
 
-// Drag the grip: the line shows whether it lands above or below the step under it.
+// Drag the grip (mouse or finger): a line shows where the step will land.
 const dragFrom = ref(null)
 const dropAt = ref(null) // { i, after }
+const rows = ref([])
 function dragStart(i, event) {
   dragFrom.value = i
-  event.dataTransfer.effectAllowed = 'move'
-  event.dataTransfer.setData('text/plain', list.value[i].text)
-  event.dataTransfer.setDragImage(event.currentTarget.closest('.step'), 12, 14)
+  event.currentTarget.setPointerCapture(event.pointerId)
 }
-function dragOver(i, event) {
+function dragMove(event) {
   if (dragFrom.value === null) return
-  event.preventDefault()
-  const box = event.currentTarget.getBoundingClientRect()
-  dropAt.value = { i, after: event.clientY > box.top + box.height / 2 }
+  const y = event.clientY
+  const boxes = rows.value.filter(Boolean).map((el) => el.getBoundingClientRect())
+  let i = boxes.findIndex((b) => y < b.bottom)
+  if (i < 0) i = boxes.length - 1
+  dropAt.value = { i, after: y > boxes[i].top + boxes[i].height / 2 }
 }
-function drop() {
+function dragEnd() {
   const from = dragFrom.value
   const at = dropAt.value
-  dragEnd()
+  dragFrom.value = null
+  dropAt.value = null
   if (from === null || !at) return
   let to = at.i + (at.after ? 1 : 0)
   if (from < to) to--
@@ -112,10 +114,6 @@ function drop() {
   const [step] = list.value.splice(from, 1)
   list.value.splice(to, 0, step)
   persist()
-}
-function dragEnd() {
-  dragFrom.value = null
-  dropAt.value = null
 }
 </script>
 
@@ -125,11 +123,17 @@ function dragEnd() {
       v-for="(s, i) in list"
       :key="s.id"
       class="step"
+      :ref="(el) => (rows[i] = el)"
       :class="{ done: s.done, lifted: dragFrom === i, 'drop-before': dropAt?.i === i && !dropAt.after, 'drop-after': dropAt?.i === i && dropAt.after }"
-      @dragover="dragOver(i, $event)"
-      @drop.prevent="drop"
     >
-      <span class="grip" draggable="true" title="Drag to reorder" @dragstart="dragStart(i, $event)" @dragend="dragEnd">⋮⋮</span>
+      <span
+        class="grip"
+        title="Drag to reorder"
+        @pointerdown.prevent="dragStart(i, $event)"
+        @pointermove="dragMove"
+        @pointerup="dragEnd"
+        @pointercancel="dragFrom = dropAt = null"
+      >⋮⋮</span>
       <button class="box" :class="{ on: s.done }" :aria-label="s.done ? `Mark “${s.text}” not done` : `Mark “${s.text}” done`" @click="toggle(s)">
         <Icon name="check" />
       </button>
@@ -188,9 +192,12 @@ function dragEnd() {
   letter-spacing: -2px;
   text-align: center;
   cursor: grab;
-  opacity: 0;
+  touch-action: none;
+  user-select: none;
+  opacity: 0.5;
 }
-.step:hover .grip {
+.step:hover .grip,
+.step.lifted .grip {
   opacity: 1;
 }
 .box {
@@ -307,6 +314,16 @@ function dragEnd() {
 }
 @media (hover: none) {
   .del {
+    opacity: 1;
+  }
+  /* Phones: the grip sits at the right end, with a bigger target for a finger. */
+  .grip {
+    position: static;
+    order: 9;
+    flex: none;
+    width: 26px;
+    padding: 9px 0;
+    font-size: 0.8rem;
     opacity: 1;
   }
 }
