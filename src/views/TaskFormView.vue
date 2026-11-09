@@ -42,7 +42,7 @@ const scopeOptions = [{ value: 'personal', label: 'Personal' }, { value: 'work',
 const periodOptions = [
   { value: 'day', label: 'Day' },
   { value: 'week', label: 'Week' },
-  { value: 'biweek', label: 'Bi-week' },
+  { value: 'biweek', label: '2 weeks' },
   { value: 'month', label: 'Month' },
   { value: 'year', label: 'Year' },
 ]
@@ -183,15 +183,15 @@ async function remove() {
 
     <div class="pair">
       <label class="field">
-        <span class="label">Period</span>
+        <span class="label">How many</span>
+        <input v-model="form.target" type="number" inputmode="decimal" min="0" class="input" />
+        <span v-if="errors.target" class="error">{{ errors.target }}</span>
+      </label>
+      <label class="field">
+        <span class="label">Per</span>
         <select v-model="form.period" class="input">
           <option v-for="o in periodOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
         </select>
-      </label>
-      <label class="field">
-        <span class="label">Frequency</span>
-        <input v-model="form.target" type="number" inputmode="decimal" min="0" class="input" />
-        <span v-if="errors.target" class="error">{{ errors.target }}</span>
       </label>
     </div>
 

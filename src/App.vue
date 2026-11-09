@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { state, addTag, updateTag } from './data/store.js'
 import { isConfigured, signOut } from './data/session.js'
@@ -13,8 +13,19 @@ import TagEditPop from './components/TagEditPop.vue'
 import ColorGrid from './components/ColorGrid.vue'
 import Toast from './components/Toast.vue'
 import TagsDialog from './components/TagsDialog.vue'
+import HowTo from './components/HowTo.vue'
+import { howTo, seenHowTo } from './lib/howTo.js'
 
 // Any failed save (e.g. offline) shows a banner instead of failing silently.
+// A brand-new account (nothing in it yet) gets the walkthrough once, on its own.
+watch(
+  () => state.ready,
+  (ready) => {
+    if (ready && !state.demo && !state.tasks.length && !state.todos.length && !seenHowTo()) howTo.open = true
+  },
+  { immediate: true },
+)
+
 const onFailure = (event) => {
   state.error = `Couldn't save that: ${event.reason?.message ?? event.reason}`
 }
@@ -224,6 +235,9 @@ const routineCount = computed(() => state.tasks.filter((t) => t.scope === contex
         @deleted="tagDeleted"
       />
       <div class="side-bottom">
+        <button class="icon-link" title="How Upkeep works" aria-label="How Upkeep works" @click="howTo.open = true">
+          <Icon name="help" />
+        </button>
         <router-link to="/settings" class="icon-link" active-class="on" title="Settings" aria-label="Settings">
           <Icon name="settings" />
         </router-link>
@@ -251,6 +265,7 @@ const routineCount = computed(() => state.tasks.filter((t) => t.scope === contex
     </nav>
     <Toast />
     <TagsDialog v-if="editingAll" @close="editingAll = false" />
+    <HowTo v-if="howTo.open" @close="howTo.open = false" />
   </div>
 </template>
 
@@ -533,6 +548,11 @@ const routineCount = computed(() => state.tasks.filter((t) => t.scope === contex
   height: 34px;
   border-radius: 8px;
   color: var(--muted);
+}
+.icon-link {
+  padding: 0;
+  border: 0;
+  background: none;
 }
 .icon-link svg {
   width: 18px;

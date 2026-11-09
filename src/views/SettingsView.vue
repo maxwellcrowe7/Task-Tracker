@@ -5,6 +5,7 @@ import { signOut } from '../data/session.js'
 import { themeSettings } from '../lib/theme.js'
 import Segmented from '../components/Segmented.vue'
 import TagManager from '../components/TagManager.vue'
+import { howTo } from '../lib/howTo.js'
 
 const modeOptions = [
   { value: 'light', label: 'Light' },
@@ -47,6 +48,12 @@ const modeHelp = computed(
   <section class="panel">
     <h2>Tags</h2>
     <TagManager />
+  </section>
+
+  <section class="panel">
+    <h2>Help</h2>
+    <p class="sub">A quick tour of how everything works.</p>
+    <button class="btn" @click="howTo.open = true">How Upkeep works</button>
   </section>
 
   <section class="panel">
