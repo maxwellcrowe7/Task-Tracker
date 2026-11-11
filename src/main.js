@@ -10,6 +10,7 @@ import { state } from './data/store.js'
 import { restoreSession } from './data/session.js'
 import { startTheme } from './lib/theme.js'
 import { startAutoRefresh } from './lib/autoRefresh.js'
+import { startClock } from './lib/clock.js'
 import SettingsView from './views/SettingsView.vue'
 import TodosView from './views/TodosView.vue'
 import TodoPage from './views/TodoPage.vue'
@@ -40,6 +41,7 @@ router.beforeEach((to) => {
 
 startTheme()
 startAutoRefresh()
+startClock()
 
 restoreSession()
   .catch((error) => {

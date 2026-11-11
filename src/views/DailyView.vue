@@ -18,18 +18,9 @@ import Icon from '../components/Icon.vue'
 
 const router = useRouter()
 
-// Keep "today" right if the app stays open past midnight.
+// Fixed for the life of the page; App.vue redraws it when the day turns over.
 const today = ref(todayLocal())
 const selectedDate = ref(today.value)
-const refreshToday = () => {
-  const now = todayLocal()
-  if (now !== today.value) {
-    if (selectedDate.value === today.value) selectedDate.value = now
-    today.value = now
-  }
-}
-onMounted(() => document.addEventListener('visibilitychange', refreshToday))
-onUnmounted(() => document.removeEventListener('visibilitychange', refreshToday))
 
 const isToday = computed(() => selectedDate.value === today.value)
 // Days ahead can be looked at but not logged.

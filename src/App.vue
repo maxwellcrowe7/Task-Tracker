@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { state, addTag, updateTag } from './data/store.js'
 import { isConfigured, signOut } from './data/session.js'
 import { todayLists } from './data/todayList.js'
-import { todayLocal } from './domain/dates.js'
 import { context } from './lib/context.js'
 import { tagTree, withDescendants, parentChoices, moveTag, paletteColor, nextColor } from './domain/tags.js'
 import ContextSwitch from './components/ContextSwitch.vue'
@@ -15,6 +14,7 @@ import Toast from './components/Toast.vue'
 import TagsDialog from './components/TagsDialog.vue'
 import HowTo from './components/HowTo.vue'
 import { howTo, seenHowTo } from './lib/howTo.js'
+import { clock } from './lib/clock.js'
 
 // Any failed save (e.g. offline) shows a banner instead of failing silently.
 // A brand-new account (nothing in it yet) gets the walkthrough once, on its own.
@@ -33,7 +33,7 @@ onMounted(() => window.addEventListener('unhandledrejection', onFailure))
 onUnmounted(() => window.removeEventListener('unhandledrejection', onFailure))
 
 const todayCount = computed(() => {
-  const l = todayLists(todayLocal(), context.scope)
+  const l = todayLists(clock.today, context.scope)
   return l.open.length + l.openTodos.length
 })
 const todoCount = computed(() => state.todos.filter((t) => t.scope === context.scope && !t.done_on).length)
@@ -254,7 +254,8 @@ const routineCount = computed(() => state.tasks.filter((t) => t.scope === contex
         <button v-if="isConfigured" class="link" @click="signOut">Exit</button>
       </p>
       <div v-if="['/', '/manage', '/todos', '/settings'].includes($route.path)" class="mobile-ctx"><ContextSwitch /></div>
-      <router-view :key="$route.fullPath" />
+      <!-- The date is part of the key: when the day turns over, the page redraws for the new day. -->
+      <router-view :key="$route.fullPath + clock.today" />
     </div>
 
     <nav class="tabs">
