@@ -4,6 +4,7 @@ import { createSupabaseRepo } from './supabaseRepo.js'
 import { buildSampleData } from './seed.js'
 import { todayLocal } from '../domain/dates.js'
 import { supabase, isConfigured } from '../lib/supabase.js'
+import { startLiveUpdates } from '../lib/autoRefresh.js'
 
 export { isConfigured }
 
@@ -13,6 +14,7 @@ async function startSupabase() {
   const { data } = await supabase.auth.getSession()
   state.email = data.session?.user.email ?? ''
   await initStore(createSupabaseRepo(supabase))
+  startLiveUpdates()
 }
 
 // On launch: demo mode if Supabase isn't configured, otherwise resume a saved login.
