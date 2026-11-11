@@ -22,8 +22,34 @@ export const state = reactive({
 let repo
 
 export async function initStore(newRepo) {
-  repo = newRepo
+  repo = tracked(newRepo)
   Object.assign(state, { todos: [], tags: [] }, await repo.load(), { ready: true, demo: repo.mode === 'demo' })
+}
+
+// Saves are counted so a refresh never lands on top of one: a reload that started before
+// (or overlaps) a save could be missing it, so it's thrown away.
+let saving = 0
+let saves = 0
+function tracked(r) {
+  const wrap = (fn) => async (...args) => {
+    saving++
+    saves++
+    try {
+      return await fn.apply(r, args)
+    } finally {
+      saving--
+    }
+  }
+  return { ...r, insert: wrap(r.insert), insertMany: wrap(r.insertMany), update: wrap(r.update), remove: wrap(r.remove) }
+}
+
+// Pull everything again, to pick up changes made on another device.
+export async function refreshStore() {
+  if (!repo || repo.mode === 'demo' || saving) return
+  const before = saves
+  const data = await repo.load()
+  if (saving || saves !== before) return
+  Object.assign(state, data)
 }
 
 const removeFrom = (list, row) => list.splice(list.indexOf(row), 1)

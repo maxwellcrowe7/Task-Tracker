@@ -9,6 +9,7 @@ import TaskHistoryView from './views/TaskHistoryView.vue'
 import { state } from './data/store.js'
 import { restoreSession } from './data/session.js'
 import { startTheme } from './lib/theme.js'
+import { startAutoRefresh } from './lib/autoRefresh.js'
 import SettingsView from './views/SettingsView.vue'
 import TodosView from './views/TodosView.vue'
 import TodoPage from './views/TodoPage.vue'
@@ -38,6 +39,7 @@ router.beforeEach((to) => {
 })
 
 startTheme()
+startAutoRefresh()
 
 restoreSession()
   .catch((error) => {
