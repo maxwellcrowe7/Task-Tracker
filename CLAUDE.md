@@ -28,7 +28,8 @@ Copy `.env.example` to `.env.local` and fill in `VITE_SUPABASE_URL` / `VITE_SUPA
   - `seed.js` — sample data for demo mode and `seed.sql`.
 - `src/lib/` — app plumbing: Supabase client (PKCE auth), auto-refresh/realtime, theme, clock, toasts.
 - `src/views/` — one per route (see `src/main.js`). `src/components/` — shared UI pieces.
-- `tests/` — Vitest. `tests/domain/` for logic, `tests/data/` for store/refresh behavior.
+- `tests/` — Vitest, mirroring `src/`: `tests/domain/` for logic, `tests/data/` for store/refresh behavior, `tests/lib/` for plumbing (theme rules).
+- Scratch files in the root (`mockups.html`, `desktop-mockups.html`, `shot.html`, `Upkeep.app/`) are local only and git-ignored.
 
 ## Supabase
 

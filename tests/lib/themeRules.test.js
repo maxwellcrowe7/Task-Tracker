@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolveTheme } from '../src/lib/themeRules.js'
+import { resolveTheme } from '../../src/lib/themeRules.js'
 
 const at = (hhmm) => {
   const [h, m] = hhmm.split(':').map(Number)

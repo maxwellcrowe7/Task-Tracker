@@ -3,3 +3,9 @@ dist
 .env
 .env.local
 .DS_Store
+
+# Local scratch files: design mockups, screenshot page, local app bundle
+mockups.html
+desktop-mockups.html
+shot.html
+Upkeep.app/
