@@ -167,3 +167,12 @@ alter table public.habit_todos drop constraint if exists habit_todos_lead_days_c
 alter table public.habit_todos add constraint habit_todos_lead_days_check check (lead_days between 0 and 365);
 update public.habit_todos set lead_days = null where lead_days is not null;
 alter table public.habit_todos add column show_from date;
+
+-- Live updates between devices (migrations-2026-11-10-realtime.sql).
+alter publication supabase_realtime add table
+  public.habit_tasks,
+  public.habit_completions,
+  public.habit_pauses,
+  public.habit_vacations,
+  public.habit_todos,
+  public.habit_tags;
